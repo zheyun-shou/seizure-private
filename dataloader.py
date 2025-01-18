@@ -31,7 +31,7 @@ def extract_segment(subject, session, task, run, channel, start_time, duration, 
     
     # Find the index of the channel
     # channel_idx = raw_data.info['ch_names'].index(channel)
-    raw_data.pick_channels(channel)
+    raw_data.inst.pick(channel)
     
     # Convert start time and duration to sample indices
     sfreq = raw_data.info['sfreq']
@@ -138,15 +138,50 @@ def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
     
     return overlap_ratios
 
+def get_all_recordings(bids_root):
+    recordings = []
+    for root, dirs, files in os.walk(bids_root):
+        for file in files:
+            if file.endswith(".edf"):
+                recordings.append(file)
+    return recordings
+
+def get_ids_from_filename(file_name):
+    """
+    Extract subject, session, task, and run IDs from a BIDS-formatted filename.
+
+    """
+    
+    parts = file_name.split('_')
+    subject_id = parts[0].split('-')[-1]
+    session_id = parts[1].split('-')[-1]
+    task_id = parts[2].split('-')[-1]
+    run_id = parts[3].split('-')[-1]
+    
+    return subject_id, session_id, task_id, run_id
+
+def get_all_ids(recordings):
+    subject_ids = []
+    session_ids = []
+    task_ids = []
+    run_ids = []
+    for recording in recordings:
+        subject_id, session_id, task_id, run_id = get_ids_from_filename(recording)
+        subject_ids.append(subject_id)
+        session_ids.append(session_id)
+        task_ids.append(task_id)
+        run_ids.append(run_id)
+    return subject_ids, session_ids, task_ids, run_ids
+
 bids_root = 'E:\BIDS_Siena' # Replace with your actual path
 task = 'szMonitoring'                # Task name
-subject = '01'                       # Subject ID
-session = '01'                       # Session ID
-run = '00'                           # Run ID
-desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
+# subject = '01'                       # Subject ID
+# session = '01'                       # Session ID
+# run = '00'                           # Run ID
+#desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
 # desired_channel = [] 
-start_time = 46253                  # Start time in seconds
-duration = 300.0                      # Duration in seconds
+#start_time = 46253                  # Start time in seconds
+#duration = 300.0                      # Duration in seconds
 
 
 segment, times = extract_segment(subject, session, task, run, desired_channel, start_time, duration, bids_root)
@@ -178,27 +213,41 @@ for segment_channel in segment:
 end_feature_time = time.time()
 print(f"Feature extraction took: {end_feature_time - start_feature_time:.2f} seconds")
 
-
-
-
 # train a SVM model to predict the labels based on the features
 start_model_time = time.time()
-labels = get_labels_from_info(times, event_info)
-X = np.array(features).T
-y = np.array(labels)
-model = svm.SVC(kernel='rbf')
-model.fit(X, y)
-end_model_time = time.time()
-print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
 
-start_model_time = time.time()
-predicted = model.predict(X)
-end_model_time = time.time()
-print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+recordings = get_all_recordings(bids_root)
+subject_ids, session_ids, task_ids, run_ids = get_all_ids(recordings)
 
-plt.plot(times, predicted)
-plt.show()
+#extract all event info
+event_info = []
+for i in range(len(recordings)):
+    event_info.append(extract_event_info(subject_ids[i], session_ids[i], task_ids[i], run_ids[i], bids_root))
 
-# Calculate the overlap ratio
-overlap_ratios = roi_overlap_ratio(start_time, start_time + duration, event_info)
+# use a sliding windows to first cut the recording into segments
+# then label each segment based on the event info
+
+
+
+
+
+
+# labels = get_labels_from_info(times, event_info)
+# X = np.array(features).T
+# y = np.array(labels)
+# model = svm.SVC(kernel='rbf')
+# model.fit(X, y)
+# end_model_time = time.time()
+# print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
+
+# start_model_time = time.time()
+# predicted = model.predict(X)
+# end_model_time = time.time()
+# print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+
+# plt.plot(times, predicted)
+# plt.show()
+
+# # Calculate the overlap ratio
+# overlap_ratios = roi_overlap_ratio(start_time, start_time + duration, event_info)
 
