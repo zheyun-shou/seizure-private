@@ -4,10 +4,13 @@ from mne.io import read_raw_edf
 import numpy as np
 import pandas as pd
 import os
+import time
 import matplotlib.pyplot as plt
 from scipy.ndimage import generic_filter
 from scipy.signal import envelope
 from wavelet_utils import wavelet_decompose_channels_from_segment
+from custom_utils import min_max_in_window_scipy, get_custom_envelope, sliding_average, sliding_energy, sliding_autocorr, get_labels_from_info
+from sklearn import svm
 
 def extract_segment(subject, session, task, run, channel, start_time, duration, bids_root):
     """
@@ -135,139 +138,13 @@ def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
     
     return overlap_ratios
 
-
-
-def min_max_in_window_scipy(sequence, k):
-    """
-    Calculate the maximum absolute value within a sliding window using SciPy for optimized performance.
-    
-    Parameters:
-    - sequence (np.array): The input sequence of numbers.
-    - k (int): The size of the sliding window.
-    
-    Returns:
-    - max_abs_values (np.array): A list of the maximum absolute values within each sliding window.
-    """
-    
-    # Define a custom function for max absolute value in the window
-    # def max_abs(window):
-    #     return np.max(np.abs(window))
-    # Define a custom function for min max value in the window
-    def min_max(window):
-        return np.max(window) - np.min(window)
-    
-    # Apply the sliding window max absolute value
-    max_abs_values = generic_filter(sequence, min_max, size=k, mode='constant', cval=0.0)
-    
-    return max_abs_values  # Return results for windows fully inside the sequence
-
-def get_envelope(sequence):
-    bp_in = (256*4, None)
-    x_env, x_res = envelope(sequence, bp_in=bp_in)
-    return x_env + x_res
-
-def get_custom_envelope(sequence, k):
-
-    def custom_envelope(sequence):
-        # 1. find the midpoint of the sequence
-        # 2. find the max value to the left and right of the midpoint
-        # 3. linear interpolation between the two max values
-        # find the midpoint
-        midpoint = len(sequence) // 2
-        # find the max value to the left of the midpoint
-        max_left = np.max(sequence[:midpoint])
-        # find the max value to the right of the midpoint
-        max_right = np.max(sequence[midpoint:])
-        # get new midpoint value using linear interpolation
-        new_midpoint = max_left + (max_right - max_left) * (midpoint / len(sequence))
-        return new_midpoint
-
-    envelope_values = generic_filter(sequence, custom_envelope, size=k, mode='constant', cval=0.0)
-    return envelope_values
-
-def sliding_average(sequence, k):
-    """
-    Calculate the sliding average of a sequence using a window size of k.
-    
-    Parameters:
-    - sequence (np.array): The input sequence of numbers.
-    - k (int): The size of the sliding window.
-    
-    Returns:
-    - avg_values (np.array): A list of the average values within each sliding window.
-    """
-    
-    # Define a custom function for average in the window
-    def average(window):
-        return np.mean(window)
-    
-    # Apply the sliding window average
-    avg_values = generic_filter(sequence, average, size=k, mode='constant', cval=0.0)
-    
-    return avg_values  # Return results for windows fully inside the sequence
-
-# def compute_power_spectral_density(segment_data, sfreq):
-
-    
-#     from scipy.signal import welch
-    
-#     # Compute the PSD using Welch's method
-#     freqs, psd = welch(segment_data, sfreq, nperseg=256)
-    
-#     return freqs, psd
-
-def sliding_energy(sequence, k):
-    """
-    Calculate the sliding average of a sequence using a window size of k.
-    
-    Parameters:
-    - sequence (np.array): The input sequence of numbers.
-    - k (int): The size of the sliding window.
-    
-    Returns:
-    - avg_values (np.array): A list of the average values within each sliding window.
-    """
-    
-    # Define a custom function for average in the window
-    def energy(window):
-        return np.sum(window**2)
-    
-    # Apply the sliding window average
-    energy_values = generic_filter(sequence, energy, size=k, mode='constant', cval=0.0)
-    
-    return energy_values
-
-def sliding_autocorr(sequence, k):
-    """
-    Calculate the sliding average of a sequence using a window size of k.
-    
-    Parameters:
-    - sequence (np.array): The input sequence of numbers.
-    - k (int): The size of the sliding window.
-    
-    Returns:
-    - avg_values (np.array): A list of the average values within each sliding window.
-    """
-    
-    # Define a custom function for autocorrelation in the window, and clip to the right size in the middle
-    def autocorr(window):
-        # normalize the window by subtracting the mean and min-max scaling
-        window = (window - np.mean(window)) / (np.max(window) - np.min(window))
-        arr = np.correlate(window, window, mode='same')
-        return np.max(arr)
-    
-    # Apply the sliding window average
-    autocorr_values = generic_filter(sequence, autocorr, size=k, mode='constant', cval=0.0)
-    
-    return autocorr_values
-
 bids_root = 'E:\BIDS_Siena' # Replace with your actual path
 task = 'szMonitoring'                # Task name
 subject = '01'                       # Subject ID
 session = '01'                       # Session ID
 run = '00'                           # Run ID
-# desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
-desired_channel = [] 
+desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
+# desired_channel = [] 
 start_time = 46253                  # Start time in seconds
 duration = 300.0                      # Duration in seconds
 
@@ -282,17 +159,44 @@ print(event_info)
 # Plot the segment
 plot_eeg_segment(segment, times, desired_channel, event_info)
 
-# max values
+start_feature_time = time.time()
+features = []
 for segment_channel in segment:
-    # v = min_max_in_window_scipy(segment_channel, k=64)
+    v = min_max_in_window_scipy(segment_channel, k=64)
+    features.append(v)
     # v = get_envelope(segment_channel)
     # v = sliding_average(segment_channel, k=64)
-    # v= sliding_energy(segment_channel, k=768)
+    v = sliding_energy(segment_channel, k=768)
+    features.append(v)
     # v = sliding_autocorr(segment_channel, k=768)
     # v = get_custom_envelope(segment_channel, k=768)
+
     # scale v to the same max/min as the segment_channel
     # v = v * (np.max(segment_channel) - np.min(segment_channel)) / (np.max(v) - np.min(v))
-    plt.plot(times, v)
+    # plt.plot(times, v)
+
+end_feature_time = time.time()
+print(f"Feature extraction took: {end_feature_time - start_feature_time:.2f} seconds")
+
+
+
+
+# train a SVM model to predict the labels based on the features
+start_model_time = time.time()
+labels = get_labels_from_info(times, event_info)
+X = np.array(features).T
+y = np.array(labels)
+model = svm.SVC(kernel='rbf')
+model.fit(X, y)
+end_model_time = time.time()
+print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
+
+start_model_time = time.time()
+predicted = model.predict(X)
+end_model_time = time.time()
+print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+
+plt.plot(times, predicted)
 plt.show()
 
 # Calculate the overlap ratio
