@@ -1,37 +1,30 @@
-from bids import BIDSLayout
-# import mne
 from mne.io import read_raw_edf
-import numpy as np
 import pandas as pd
 import os
-import time
-import matplotlib.pyplot as plt
-from scipy.ndimage import generic_filter
-from scipy.signal import envelope
-from wavelet_utils import wavelet_decompose_channels_from_segment
-from custom_utils import min_max_in_window_scipy, get_custom_envelope, sliding_average, sliding_energy, sliding_autocorr, get_labels_from_info
-from sklearn import svm
 
-def extract_segment(subject, session, task, run, channel, start_time, duration, bids_root):
+def extract_segment(file_path, segment_info):
     """
     Extract a segment from a specific recording based on subject, session, task, and run.
 
     """
-    
-    # Construct the file path
-    file_name = f"sub-{subject}_ses-{session}_task-{task}_run-{run}_eeg.edf"
-    file_path = f"{bids_root}/sub-{subject}/ses-{session}/eeg/{file_name}"
-    
+
     # Load the EDF file using MNE
     raw_data = read_raw_edf(file_path, preload=True)
-    
+
+    channels, start_time, duration = segment_info["channel"], segment_info["start_time"], segment_info["duration"]
+    mapping = {
+        ch: ch[:1].upper() + ch[1:2].lower() + ch[2:]
+        for ch in raw_data.ch_names
+    }
+    raw_data.rename_channels(mapping)
+
     # Check if the specified channel is in the data
-    # if channel not in raw_data.info['ch_names']:
-    #     raise ValueError(f"Channel '{channel}' not found in the data.")
+    for ch in channels:
+        if ch not in raw_data.info['ch_names']:
+            raise ValueError(f"Channel '{ch}' not found in the data.")
     
     # Find the index of the channel
-    # channel_idx = raw_data.info['ch_names'].index(channel)
-    raw_data.inst.pick(channel)
+    raw_data.pick(channels)
     
     # Convert start time and duration to sample indices
     sfreq = raw_data.info['sfreq']
@@ -44,17 +37,13 @@ def extract_segment(subject, session, task, run, channel, start_time, duration, 
     segment_times = times[start_sample:end_sample]
     return segment_data, segment_times
 
-def extract_event_info(subject, session, task, run, path_to_tsv_files):
+def extract_event_info(file_path):
     """
     Extract event onset, duration, and channel from a BIDS-formatted TSV file.
     
     Returns:
     - events_df (pandas.DataFrame): A DataFrame containing the 'onset', 'duration', and 'channel' columns.
     """
-    
-    # Construct the file path
-    file_name = f"sub-{subject}_ses-{session}_task-{task}_run-{run}_events.tsv"
-    file_path = f"{bids_root}/sub-{subject}/ses-{session}/eeg/{file_name}"
     
     # Load the TSV file using pandas
     events_df = pd.read_csv(file_path, sep='\t')
@@ -69,82 +58,36 @@ def extract_event_info(subject, session, task, run, path_to_tsv_files):
     
     return events_info
 
-def plot_eeg_segment(segment_data, times, channel_name, event_info):
-    """
-    Plots a segment of EEG data.
-
-    Parameters:
-    - segment_data (ndarray): Time-series data for the segment.
-    - times (ndarray): Time values corresponding to the segment.
-    - channel_name (str): Name of the channel being plotted.
-    """
-    #highlight the seizure events
-    # for event in seizure_events:
-     
-
-    plt.figure(figsize=(10, 4))
-    plt.plot(times, segment.T)
-    for _, event in event_info.iterrows():
-        onset_event = event['onset']
-        duration_event = event['duration']
-        end_time_event = onset_event + duration_event
-        if end_time_event > times[-1] or onset_event < times[0]:
-            continue
-        plt.axvspan(onset_event, end_time_event, color='green', alpha=0.2)
-    plt.xlabel('Time (s)')
-    plt.ylabel('Amplitude (µV)')
-    plt.title(f'EEG Segment for Channel {channel_name}')
-    plt.grid(True)
-    # plt.show()
-
-def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
-    """
-    Calculate the overlap ratio of an extracted ROI with reference to ground truth events.
-    
-    Parameters:
-    - start_time_roi (float): The start time of the ROI (in seconds).
-    - end_time_roi (float): The end time of the ROI (in seconds).
-    - event_info (pandas.DataFrame): DataFrame containing 'onset', 'duration', and 'channel' of events.
-    
-    Returns:
-    - overlap_ratios (list): List of overlap ratios for each event.
-    """
-    
-    overlap_ratios = []
-    
-    for _, event in event_info.iterrows():
-        onset_event = event['onset']
-        duration_event = event['duration']
-        end_time_event = onset_event + duration_event
-        
-        # Calculate overlap times
-        overlap_start = max(start_time_roi, onset_event)
-        overlap_end = min(end_time_roi, end_time_event)
-        
-        # If there is an overlap, calculate the overlap duration
-        if overlap_start < overlap_end:
-            overlap_duration = overlap_end - overlap_start
-        else:
-            overlap_duration = 0
-        
-        # Calculate the overlap ratio
-        event_duration = duration_event
-        if event_duration > 0:
-            overlap_ratio = overlap_duration / event_duration
-        else:
-            overlap_ratio = 0
-        
-        overlap_ratios.append(overlap_ratio)
-    
-    return overlap_ratios
-
-def get_all_recordings(bids_root):
-    recordings = []
+def read_ids_from_bids(bids_root):
+    recording_ids = []
     for root, dirs, files in os.walk(bids_root):
         for file in files:
             if file.endswith(".edf"):
-                recordings.append(file)
-    return recordings
+                base = file[:-8]  # remove "_eeg.edf" from the end
+                json_file = base + "_eeg.json"
+                tsv_file = base + "_events.tsv"
+                if os.path.exists(os.path.join(root, tsv_file)) and os.path.exists(os.path.join(root, json_file)):
+                    subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
+                    # create a tree-like dictionary to store the data
+                    ids = {
+                        'subject_id': subject_id,
+                        'session_id': session_id,
+                        'task_id': task_id,
+                        'run_id': run_id,
+                    }
+                    recording_ids.append(ids)
+    return recording_ids
+
+def get_channel_from_event_info(event_info, offset=100):
+    chs = (event_info["channels"].to_list()[0]).split(sep=",")
+    for i in range(len(chs)):
+        chs[i] = chs[i] + "-Avg"
+    onset = event_info["onset"].to_list()[0]
+    duration = event_info["duration"].to_list()[0]
+    onset -= offset
+    duration += 2 * offset
+    info = {"channel": chs, "start_time": onset, "duration": duration}
+    return info
 
 def get_ids_from_filename(file_name):
     """
@@ -160,69 +103,32 @@ def get_ids_from_filename(file_name):
     
     return subject_id, session_id, task_id, run_id
 
-def get_all_ids(recordings):
-    subject_ids = []
-    session_ids = []
-    task_ids = []
-    run_ids = []
-    for recording in recordings:
-        subject_id, session_id, task_id, run_id = get_ids_from_filename(recording)
-        subject_ids.append(subject_id)
-        session_ids.append(session_id)
-        task_ids.append(task_id)
-        run_ids.append(run_id)
-    return subject_ids, session_ids, task_ids, run_ids
+def get_dir_from_ids(bids_root, ids):
+    subject_id, session_id = ids['subject_id'], ids['session_id']
+    return f"{bids_root}/sub-{subject_id}/ses-{session_id}/eeg/"
 
-bids_root = 'E:\BIDS_Siena' # Replace with your actual path
-task = 'szMonitoring'                # Task name
-# subject = '01'                       # Subject ID
-# session = '01'                       # Session ID
-# run = '00'                           # Run ID
-#desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
-# desired_channel = [] 
-#start_time = 46253                  # Start time in seconds
-#duration = 300.0                      # Duration in seconds
+def get_path_from_ids(ids, bids_root=None, get_abs_path=False, file_format="edf"):
+    suffix = "eeg"if (file_format == "edf" or file_format == "json") else "events"
+    subject_id, session_id, task_id, run_id = ids['subject_id'], ids['session_id'], ids['task_id'], ids['run_id']
+    data_file = f"sub-{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_{suffix}.{file_format}"
+    if get_abs_path:
+        assert bids_root is not None, "Please provide the BIDS root directory."
+        return os.path.join(get_dir_from_ids(bids_root, ids), data_file)
+    else:
+        return data_file
+
+def read_siena_dataset(bids_root):
+    recording_ids = read_ids_from_bids(bids_root)
+    event_infos, segments = [], []
+    for ids in recording_ids:
+        event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"))
+        segment_info = get_channel_from_event_info(event_info)
+        signal, time = extract_segment(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), segment_info)
+        event_infos.append(event_info)
+        segments.append({"signal": signal, "time": time})
+    return event_infos, segments
 
 
-segment, times = extract_segment(subject, session, task, run, desired_channel, start_time, duration, bids_root)
-
-event_info = extract_event_info(subject, session, task, run, bids_root)
-print(event_info)
-
-# decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
-
-# Plot the segment
-plot_eeg_segment(segment, times, desired_channel, event_info)
-
-start_feature_time = time.time()
-features = []
-for segment_channel in segment:
-    v = min_max_in_window_scipy(segment_channel, k=64)
-    features.append(v)
-    # v = get_envelope(segment_channel)
-    # v = sliding_average(segment_channel, k=64)
-    v = sliding_energy(segment_channel, k=768)
-    features.append(v)
-    # v = sliding_autocorr(segment_channel, k=768)
-    # v = get_custom_envelope(segment_channel, k=768)
-
-    # scale v to the same max/min as the segment_channel
-    # v = v * (np.max(segment_channel) - np.min(segment_channel)) / (np.max(v) - np.min(v))
-    # plt.plot(times, v)
-
-end_feature_time = time.time()
-print(f"Feature extraction took: {end_feature_time - start_feature_time:.2f} seconds")
-
-# train a SVM model to predict the labels based on the features
-start_model_time = time.time()
-
-recordings = get_all_recordings(bids_root)
-subject_ids, session_ids, task_ids, run_ids = get_all_ids(recordings)
-
-#extract all event info
-event_info = []
-for i in range(len(recordings)):
-    event_info.append(extract_event_info(subject_ids[i], session_ids[i], task_ids[i], run_ids[i], bids_root))
 
 # use a sliding windows to first cut the recording into segments
 # then label each segment based on the event info
@@ -230,24 +136,4 @@ for i in range(len(recordings)):
 
 
 
-
-
-# labels = get_labels_from_info(times, event_info)
-# X = np.array(features).T
-# y = np.array(labels)
-# model = svm.SVC(kernel='rbf')
-# model.fit(X, y)
-# end_model_time = time.time()
-# print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
-
-# start_model_time = time.time()
-# predicted = model.predict(X)
-# end_model_time = time.time()
-# print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
-
-# plt.plot(times, predicted)
-# plt.show()
-
-# # Calculate the overlap ratio
-# overlap_ratios = roi_overlap_ratio(start_time, start_time + duration, event_info)
 
