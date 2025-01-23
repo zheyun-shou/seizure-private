@@ -83,9 +83,9 @@ def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
     return overlap_ratios
 
 if __name__ == "__main__":
-    # dname = os.path.dirname(os.path.abspath(__file__))
-    # bids_root = dname + '\BIDS_Siena' # Replace with your actual path
-    bids_root = 'E:\BIDS_Siena'
+    dname = os.path.dirname(os.path.abspath(__file__))
+    bids_root = dname + '\BIDS_Siena' # Replace with your actual path
+    # bids_root = 'E:\BIDS_Siena'
     desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
     start_time = 46253                  # Start time in seconds
     duration = 300.0                      # Duration in seconds
@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     # plot_eeg_segment(segment, times, desired_channel, event_info)
 
-    event_infos, segments = read_siena_dataset(bids_root)
+    event_infos, segments = read_siena_dataset(bids_root, max_workers=3)
 
     # start_feature_time = time.time()
     # features = get_feature_matrix(segments)

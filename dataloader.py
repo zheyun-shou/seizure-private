@@ -124,7 +124,7 @@ def sample_non_seizure_intervals(event_infos, total_duration=0, n_samples=10):
 
     return pd.DataFrame(no_event_intervals)
 
-def extract_epochs(file_path, event_info, event_offset=100, epoch_duration=10, epoch_overlap=5):
+def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoch_duration=10, epoch_overlap=5):
     """
     Extract seizure and nonseizure epochs from a specific recording based on subject, session, task, and run.
 
@@ -146,6 +146,11 @@ def extract_epochs(file_path, event_info, event_offset=100, epoch_duration=10, e
             raise ValueError(f"Channel '{ch}' not found in the data.")
     
     raw_data.pick(desired_channels, verbose=False)
+    raw_data.resample(
+        sfreq=raw_data.info["sfreq"] / downsample,
+        method="polyphase",
+        verbose=False,
+    )
     
     # Extend the event duration by the event offset,
     updated_event_infos = []
@@ -173,14 +178,15 @@ def extract_epochs(file_path, event_info, event_offset=100, epoch_duration=10, e
         raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
         e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
                                             overlap=epoch_overlap, preload=True)
-        e.metadata={"label": []}
-        for i in range(len(e.events)):
-            t_start = e.events[i][0]
-            t_end = t_start + epoch_duration
-            if t_start > info["onset"] or t_end < info["onset"] + info["duration"] : # if the epoch is not fully within the seizure period
-                e.metadata["label"].append(1)
+        label = []
+        for t in e.events:
+            t_start = t[0] / raw_copy.info["sfreq"]
+            t_end = (t[0] + epoch_duration) / raw_copy.info["sfreq"]
+            if t_end > event_info["onset"][i] and t_start < event_info["onset"][i] + event_info["duration"][i] : # if the epoch is not fully within the seizure period
+                label.append(1)
             else:
-                e.metadata["label"].append(0)
+                label.append(0)
+        e.metadata=pd.DataFrame({"label": label})
         epochs.append(e)
 
 
@@ -188,15 +194,16 @@ def extract_epochs(file_path, event_info, event_offset=100, epoch_duration=10, e
         raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
         e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
                                             overlap=epoch_overlap, preload=True, verbose=False)
-        e.metadata={"label": []}
-        e.metadata["label"] = [0] * len(e.events)
+        label = [0] * len(e.events)
+        e.metadata=pd.DataFrame({"label": label})
         epochs.append(e)
 
     return epochs
 
-def process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=5, event_offset=100):
+def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=5, event_offset=100):
     event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"))
-    epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), event_info, event_offset, epoch_duration, epoch_overlap)
+    epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 
+                            event_info, downsample, event_offset, epoch_duration, epoch_overlap)
     segments = []
     for ep in epochs:
         # size of epoch data: n_epochs x n_channels x n_times
@@ -205,23 +212,25 @@ def process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=5, event_
         epoch = ep.get_data()
         n_epochs, n_channels, n_times = epoch.shape
         epoch = epoch.reshape(n_epochs * n_channels, n_times)
-        epoch_labels = np.tile(ep.metadata["label"], (n_channels, 1))
+        epoch_labels = np.tile(ep.metadata["label"], (n_channels))
         # label = ep.events[:, -1]
-        segments.append({"epoch": epoch, "label": np.tile(ep.metadata["label"], (n_channels, 1))})
+        segments.append({"epoch": epoch, "label": epoch_labels})
         # TODO: Add properties that allows trace back to the original recording
     return segments
 
-def read_siena_dataset(bids_root):
+def read_siena_dataset(bids_root, max_workers=4):
     recording_ids = read_ids_from_bids(bids_root)
     event_infos, segments = [], []
 
-    for ids in recording_ids:
-        process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=5, event_offset=100)
-
-    # with ProcessPoolExecutor(max_workers=4) as executor:
-    #     futures = [executor.submit(process_recording, ids, bids_root) for ids in recording_ids]
-    #     for future in as_completed(futures):
-    #         segments.extend(future.result())
+    if max_workers == 1:
+        for ids in recording_ids:
+            segment = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=5, event_offset=100)
+            segments.extend(segment)
+    else:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_recording, ids, bids_root) for ids in recording_ids]
+            for future in as_completed(futures):
+                segments.extend(future.result())
 
     return event_infos, segments
 
