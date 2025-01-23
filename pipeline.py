@@ -6,12 +6,12 @@ import pandas as pd
 import os
 import time
 import matplotlib.pyplot as plt
-from scipy.ndimage import generic_filter
-from scipy.signal import envelope
+from sklearn.model_selection import train_test_split
 from dataloader import read_siena_dataset
 from wavelet_utils import wavelet_decompose_channels_from_segment
 from custom_utils import get_feature_matrix, get_labels_from_info
 from sklearn import svm
+from sktime.classification.kernel_based import RocketClassifier
 
 def plot_eeg_segment(segment_data, times, channel_name, event_info):
     """
@@ -82,47 +82,53 @@ def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
     
     return overlap_ratios
 
-dname = os.path.dirname(os.path.abspath(__file__))
-bids_root = dname + '\BIDS_Siena' # Replace with your actual path
-desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
-start_time = 46253                  # Start time in seconds
-duration = 300.0                      # Duration in seconds
+if __name__ == "__main__":
+    # dname = os.path.dirname(os.path.abspath(__file__))
+    # bids_root = dname + '\BIDS_Siena' # Replace with your actual path
+    bids_root = 'E:\BIDS_Siena'
+    desired_channel = ['T3-Avg', 'T5-Avg']            # Channel name
+    start_time = 46253                  # Start time in seconds
+    duration = 300.0                      # Duration in seconds
 
-# decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
+    # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
 
-# plot_eeg_segment(segment, times, desired_channel, event_info)
+    # plot_eeg_segment(segment, times, desired_channel, event_info)
 
-event_infos, segments = read_siena_dataset(bids_root)
+    event_infos, segments = read_siena_dataset(bids_root)
 
-start_feature_time = time.time()
-features = get_feature_matrix(segments)
-end_feature_time = time.time()
-print(f"Feature extraction took: {end_feature_time - start_feature_time:.2f} seconds")
+    # start_feature_time = time.time()
+    # features = get_feature_matrix(segments)
+    # end_feature_time = time.time()
+    # print(f"Feature extraction took: {end_feature_time - start_feature_time:.2f} seconds")
 
-# train a SVM model to predict the labels based on the features
-start_model_time = time.time()
-labels = []
-for event_info, segment in zip(event_infos, segments):
-    times = segment['time']
-    labels.append(get_labels_from_info(times, event_info))
-# labels = get_labels_from_info(times, event_info)
-X = np.concatenate([f.ravel() for f in features]).reshape(-1, 1)
-y = np.concatenate([f.ravel() for f in labels]).reshape(-1, 1)
-model = svm.SVC(kernel='rbf')
-model.fit(X, y)
-end_model_time = time.time()
-print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
+    # train a SVM model to predict the labels based on the features
+    start_model_time = time.time()
 
-start_model_time = time.time()
-predicted = model.predict(X)
-end_model_time = time.time()
-print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+    # X = np.concatenate([f.ravel() for f in features]).reshape(-1, 1)
+    # y = np.concatenate([f.ravel() for f in labels]).reshape(-1, 1)
+    X = np.concatenate([s['epoch'] for s in segments])
+    y = np.concatenate([s['label'] for s in segments])
 
-accuracy = np.sum(predicted == y) / len(y)
-print(f"Model accuracy: {accuracy:.2f}")
+    print(X.shape, y.shape)
 
-# plt.plot(times, predicted)
-# plt.show()
+    train_size = 0.8
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42)
+    
+    model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
+    model.fit(X_train, y_train)
+    end_model_time = time.time()
+    print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
+
+    start_model_time = time.time()
+    X_test_predict = model.predict(X_test)
+    end_model_time = time.time()
+    print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+
+    accuracy = np.mean(X_test_predict == y_test)
+    print(f"Model accuracy: {accuracy:.2f}")
+
+    # plt.plot(times, predicted)
+    # plt.show()
 
 
 
