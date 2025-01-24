@@ -210,10 +210,12 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_o
         # size of epoch times: n_times
         # size of epoch labels: n_epochs
         epoch = ep.get_data()
+        epoch_labels = ep.metadata["label"].to_numpy()
+        
         n_epochs, n_channels, n_times = epoch.shape
         epoch = epoch.reshape(n_epochs * n_channels, n_times)
         epoch_labels = np.tile(ep.metadata["label"], (n_channels))
-        # label = ep.events[:, -1]
+        
         segments.append({"epoch": epoch, "label": epoch_labels})
         # TODO: Add properties that allows trace back to the original recording
     return segments
