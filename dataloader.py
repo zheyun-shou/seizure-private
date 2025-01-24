@@ -85,7 +85,7 @@ def get_channel_from_event_info(event_info):
         chs[i] = chs[i] + "-Avg"
     return chs
 
-def sample_non_seizure_intervals(event_infos, total_duration=0, n_samples=10):
+def sample_non_seizure_intervals(event_infos, total_duration=0, n_samples=5):
     """
     total_duration: the total duration of the recording
     """
@@ -141,12 +141,14 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
     raw_data.rename_channels(mapping)
 
     # Check if the specified channel is in the data
-    desired_channels = get_channel_from_event_info(event_info)
-    for ch in desired_channels:
-        if ch not in raw_data.info['ch_names']:
-            raise ValueError(f"Channel '{ch}' not found in the data.")
-    
-    raw_data.pick(desired_channels, verbose=False)
+    desired_channels = []
+    # desired_channels = get_channel_from_event_info(event_info)
+    # for ch in desired_channels:
+    #     if ch not in raw_data.info['ch_names']:
+    #         raise ValueError(f"Channel '{ch}' not found in the data.")
+    if desired_channels:
+        raw_data.pick_channels(desired_channels, verbose=False)
+    # raw_data.pick(desired_channels, verbose=False)
     # downsample to 128Hz
     raw_data.resample(
         sfreq=raw_data.info["sfreq"] / downsample,
@@ -174,7 +176,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
 
     updated_event_infos = pd.DataFrame(updated_event_infos)
 
-    no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n_samples=10)
+    no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n_samples=1)
 
     epochs, labels = [], []
     for i, info in updated_event_infos.iterrows():

@@ -16,7 +16,7 @@ from sktime.classification.kernel_based import RocketClassifier
 #pip install numpy scikit-learn pyts torch matplotlib sktime==0.30.0
 #pip install git+https://github.com/gon-uri/detach_rocket
 from detach_rocket.detach_classes import DetachRocket
-
+#from tsai.all import *
 def plot_eeg_segment(segment_data, times, channel_name, event_info):
     """
     Plots a segment of EEG data.
@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     # plot_eeg_segment(segment, times, desired_channel, event_info)
 
-    event_infos, segments = read_siena_dataset(bids_root, max_workers=4)
+    event_infos, segments = read_siena_dataset(bids_root, max_workers=2)
 
     # start_feature_time = time.time()
     # features = get_feature_matrix(segments)
@@ -116,16 +116,16 @@ if __name__ == "__main__":
     print(X.shape, y.shape)
 
     train_size = 0.8
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42, stratify=y)
     
+    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Detach rocket model
-    from detach_rocket.detach_classes import DetachRocket
-    model = DetachRocket('pytorch_minirocket', num_kernels=10000) # multivariate; input_shape=(n_samples, n_channels, timestamps)
-    X_train = X_train[:, np.newaxis, :]
-    X_test = X_test[:, np.newaxis, :]
+    # model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True) # multivariate; input_shape=(n_samples, n_channels, timestamps)
+    # X_train = X_train[:, np.newaxis, :]
+    # X_test = X_test[:, np.newaxis, :]
 
-    # # Rocket model from sktime
-    # model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
+    # Rocket model from sktime
+    model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
 
     model.fit(X_train, y_train)
     end_model_time = time.time()
