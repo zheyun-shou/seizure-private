@@ -107,7 +107,7 @@ def sample_non_seizure_intervals(event_infos, total_duration=0, n_samples=10):
         no_event_periods.append((seizure_intervals[-1][0]+seizure_intervals[-1][1], total_duration))
 
     # Randomly sample from non-seizure periods
-    # 1. has the same length as the seizure
+    # 1. has the proportinal (n_samples=10) length as seizure
     # 2. (future) have same epoch length as seizure(eg. 10s)
 
     sum_seizure_duration = event_infos["duration"].sum()
@@ -133,6 +133,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
     # Load the EDF file using MNE
     raw_data = read_raw_edf(file_path, preload=True)
 
+    # map the channel name from .tsv and .edf
     mapping = {
         ch: ch[:1].upper() + ch[1:2].lower() + ch[2:]
         for ch in raw_data.ch_names
@@ -146,6 +147,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
             raise ValueError(f"Channel '{ch}' not found in the data.")
     
     raw_data.pick(desired_channels, verbose=False)
+    # downsample to 128Hz
     raw_data.resample(
         sfreq=raw_data.info["sfreq"] / downsample,
         method="polyphase",
@@ -158,11 +160,12 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
 
         event_duration = info["duration"] + event_offset
         event_onset = info["onset"] 
-
+        
+        # check if out of bound
         if event_onset < 0:
             event_onset = 0
         elif event_onset + event_duration > raw_data._last_time:
-            event_onset = raw_data._last_time - event_duration # move the onset 
+            event_onset = raw_data._last_time - event_duration # if too long, move the onset to accomodate
         
         updated_event_info = {"channel": desired_channels, "onset": event_onset, "duration": event_duration}
         updated_event_infos.append(updated_event_info)
@@ -176,16 +179,19 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
     epochs, labels = [], []
     for i, info in updated_event_infos.iterrows():
         raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
+        # create epochs
         e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
                                             overlap=epoch_overlap, preload=True)
         label = []
         for t in e.events:
             t_start = t[0] / raw_copy.info["sfreq"]
             t_end = (t[0] + epoch_duration) / raw_copy.info["sfreq"]
-            if t_end > event_info["onset"][i] and t_start < event_info["onset"][i] + event_info["duration"][i] : # if the epoch is not fully within the seizure period
+            # if the epoch has overlap with seizure, label it as seizure
+            if t_end > event_info["onset"][i] and t_start < event_info["onset"][i] + event_info["duration"][i] : 
                 label.append(1)
             else:
                 label.append(0)
+         # label the epochs, 1: seizure, 0: non-seizure       
         e.metadata=pd.DataFrame({"label": label})
         epochs.append(e)
 
@@ -207,10 +213,11 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_o
     segments = []
     for ep in epochs:
         # size of epoch data: n_epochs x n_channels x n_times
-        # size of epoch times: n_times
+        # size of epoch times: n_times, here is 1280
         # size of epoch labels: n_epochs
         epoch = ep.get_data()
         n_epochs, n_channels, n_times = epoch.shape
+        
         epoch = epoch.reshape(n_epochs * n_channels, n_times)
         epoch_labels = np.tile(ep.metadata["label"], (n_channels))
         # label = ep.events[:, -1]
@@ -227,12 +234,14 @@ def read_siena_dataset(bids_root, max_workers=4):
             segment = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=5, event_offset=100)
             segments.extend(segment)
     else:
+        # multirpocessing in cpu
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_recording, ids, bids_root) for ids in recording_ids]
             for future in as_completed(futures):
                 segments.extend(future.result())
 
     return event_infos, segments
+
 
 
 
