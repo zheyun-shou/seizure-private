@@ -10,6 +10,7 @@ from sklearn.model_selection import train_test_split
 from dataloader import read_siena_dataset
 from wavelet_utils import wavelet_decompose_channels_from_segment
 from custom_utils import get_feature_matrix, get_labels_from_info
+import torch
 from sklearn import svm
 from sktime.classification.kernel_based import RocketClassifier
 #pip install numpy scikit-learn pyts torch matplotlib sktime==0.30.0
@@ -95,7 +96,7 @@ if __name__ == "__main__":
 
     # plot_eeg_segment(segment, times, desired_channel, event_info)
 
-    event_infos, segments = read_siena_dataset(bids_root, max_workers=3)
+    event_infos, segments = read_siena_dataset(bids_root, max_workers=4)
 
     # start_feature_time = time.time()
     # features = get_feature_matrix(segments)
@@ -117,10 +118,15 @@ if __name__ == "__main__":
     train_size = 0.8
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42)
     
-    model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1) #num_kernels:default=10,000
-    # in detachROCKET, For univariate time series, the shape of X_train should be (n_instances, n_timepoints).
-    # For multivariate time series, the shape of X_train should be (n_instances, n_variables, n_timepoints).
-    # model = DetachRocket('minirocket', num_kernels=10000) # shape not match
+    # Detach rocket model
+    from detach_rocket.detach_classes import DetachRocket
+    model = DetachRocket('pytorch_minirocket', num_kernels=10000) # multivariate; input_shape=(n_samples, n_channels, timestamps)
+    X_train = X_train[:, np.newaxis, :]
+    X_test = X_test[:, np.newaxis, :]
+
+    # # Rocket model from sktime
+    # model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
+
     model.fit(X_train, y_train)
     end_model_time = time.time()
     print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
