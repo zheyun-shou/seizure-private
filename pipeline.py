@@ -126,8 +126,6 @@ if __name__ == "__main__":
     print("device: ", device)
     # Detach rocket model
     model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
-    X_train = X_train[:, np.newaxis, :]
-    X_test = X_test[:, np.newaxis, :]
 
     # Rocket model from sktime
     #model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
