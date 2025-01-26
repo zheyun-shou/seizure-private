@@ -120,12 +120,14 @@ if __name__ == "__main__":
 
     train_size = 0.8
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42, stratify=y)
+
+    del X, y
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("cuda available: ", torch.cuda.is_available())
     print("device: ", device)
     # Detach rocket model
-    model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True) # multivariate; input_shape=(n_samples, n_channels, timestamps)
+    model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
     X_train = X_train[:, np.newaxis, :]
     X_test = X_test[:, np.newaxis, :]
 

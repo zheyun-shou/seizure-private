@@ -62,7 +62,7 @@ if __name__ == "__main__":
     # model = build_ts_model(MiniRocketHead, dls=dls) # build a time-series model      
     # learn = Learner(dls, model, metrics=accuracy) # Learner; add callback cbs=[ShowGraph()] to see the plot
 
-    learn = ts_learner(dls, MiniRocketHead, kernel_size=7, metrics=accuracy) # idn what is kernel_size
+    learn = ts_learner(dls, MiniRocketHead, metrics=accuracy) # idn what is kernel_size
 
     # Online feature calculation:
     # MiniRocket can also be used online, re-calculating the features each minibatch. In this scenario, you do not calculate fixed features one time. The online mode is a bit slower than the offline scanario, but offers more flexibility. Here are some potential uses:
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # You can use data augmentation is applied to the original time series.
     # Another use of online calculation is to experiment with training the kernels and biases. To do this requires modifications to the MRF code.
     get_ts_dls(X, y, splits=splits, tfms=tfms, batch_tfms=batch_tfms)
-    learn = ts_learner(dls, MiniRocket, kernel_size=7, metrics=accuracy) # idn what is kernel_size
+    learn = ts_learner(dls, MiniRocket, metrics=accuracy) # idn what is kernel_size
 
     # the learner is not fine-tuned;
     # learn.lr_find() # find the best learning rate

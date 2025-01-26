@@ -68,7 +68,8 @@ class DetachRocket:
         val_ratio=0.33,
         verbose = False,
         multilabel_type = 'max',
-        fixed_percentage = None
+        fixed_percentage = None,
+        device=None
         ):
 
         self._sfd_curve = None
@@ -96,6 +97,7 @@ class DetachRocket:
         self.verbose = verbose
         self.multilabel_type = multilabel_type
         self.fixed_percentage = fixed_percentage
+        self.device=device
 
         # Create rocket model
         if model_type == "rocket":
@@ -105,7 +107,7 @@ class DetachRocket:
         elif model_type == "multirocket":
             self._full_transformer = MultiRocketMultivariate(num_kernels=num_kernels)
         elif model_type == "pytorch_minirocket":
-            self._full_transformer = PytorchMiniRocketMultivariate(num_features=num_kernels)
+            self._full_transformer = PytorchMiniRocketMultivariate(num_features=num_kernels, device=device)
         else:
             raise ValueError('Invalid model_type argument. Choose from: "rocket", "minirocket", "multirocket" or "pytorch_minirocket".')
 
