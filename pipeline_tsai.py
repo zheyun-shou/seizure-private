@@ -26,10 +26,12 @@ if __name__ == "__main__":
     event_infos, segments = read_siena_dataset(bids_root, max_workers=2)
 
     #only in desired channels?
-    X = np.concatenate([s['epoch'] for s in segments])
-    y = np.concatenate([s['label'] for s in segments])
+    X = np.concatenate([s['epoch'] for s in segments]).astype(np.float32)
+    y = np.concatenate([s['label'] for s in segments]).astype(np.float32)
     X = X[:, np.newaxis, :]
     print(X.shape, y.shape)
+
+    del segments
 
     train_size = 0.8
     split_train, split_test = train_test_split(range(len(y)), train_size=train_size, random_state=42, stratify=y)
@@ -43,7 +45,7 @@ if __name__ == "__main__":
     mrf = MiniRocketFeatures(X.shape[1], X.shape[2]).to(default_device()) # mrf: MiniRocketFeatures
     X_train = X[splits[0]] # X[split_train]
     mrf.fit(X_train)
-    X_feat = get_minirocket_features(X, mrf, chunksize=1024, use_cuda=True, to_np=True)
+    X_feat = get_minirocket_features(X, mrf, chunksize=1024, use_cuda=torch.cuda.is_available(), to_np=True)
     tfms = [None, TSClassification()] # ?
     batch_tfms = [TSStandardize(by_sample=True)] # batch transforms are applied after the dataset is created
     # batch_tfms = [TSStandardize(by_sample=True), TSMagScale(), TSWindowWarp()] # Data argumentation examples

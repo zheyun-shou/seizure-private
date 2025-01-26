@@ -115,6 +115,9 @@ if __name__ == "__main__":
 
     print(X.shape, y.shape)
 
+    # In case of overflow
+    del segments
+
     train_size = 0.8
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42, stratify=y)
     
