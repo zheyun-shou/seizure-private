@@ -112,7 +112,7 @@ if __name__ == "__main__":
     #only in desired channels?
     X = np.concatenate([s['epoch'] for s in segments])
     y = np.concatenate([s['label'] for s in segments])
-
+    X = X[:, np.newaxis, :] # uncomment if use detach_rocket
     print(X.shape, y.shape)
 
     # In case of overflow
@@ -120,12 +120,11 @@ if __name__ == "__main__":
 
     train_size = 0.8
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42, stratify=y)
-    
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    del X, y
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Detach rocket model
-    # model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True) # multivariate; input_shape=(n_samples, n_channels, timestamps)
-    # X_train = X_train[:, np.newaxis, :]
-    # X_test = X_test[:, np.newaxis, :]
+    model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True) # multivariate; input_shape=(n_samples, n_channels, timestamps)
 
     # Rocket model from sktime
     model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
