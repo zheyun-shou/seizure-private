@@ -18,9 +18,9 @@ from tsai.models.MINIROCKET_Pytorch import MiniRocket, MiniRocketFeatures, MiniR
 
 
 if __name__ == "__main__":
-    dname = os.path.dirname(os.path.abspath(__file__))
-    bids_root = dname + '\BIDS_Siena' 
-    # bids_root = 'E:\BIDS_Siena' # Replace with your actual path
+    # dname = os.path.dirname(os.path.abspath(__file__))
+    # bids_root = dname + '\BIDS_Siena' 
+    bids_root = 'E:\BIDS_Siena' # Replace with your actual path
     #bids_root = 'E:\BIDS_CHB-MIT'
 
     event_infos, segments = read_siena_dataset(bids_root, max_workers=2)
@@ -37,6 +37,8 @@ if __name__ == "__main__":
     split_train, split_test = train_test_split(range(len(y)), train_size=train_size, random_state=42, stratify=y)
     splits = (split_train, split_test)
 
+    print("cuda available: ", torch.cuda.is_available())
+
     # references:
     # https://github.com/timeseriesAI/tsai/blob/main/tutorial_nbs/10_Time_Series_Classification_and_Regression_with_MiniRocket.ipynb
     # https://timeseriesai.github.io/tsai/tslearner.html
@@ -50,6 +52,7 @@ if __name__ == "__main__":
     batch_tfms = [TSStandardize(by_sample=True)] # batch transforms are applied after the dataset is created
     # batch_tfms = [TSStandardize(by_sample=True), TSMagScale(), TSWindowWarp()] # Data argumentation examples
 
+    
     start_time = time.time()
 
     # offline feature calculation: calculate all features at once
