@@ -112,7 +112,7 @@ if __name__ == "__main__":
     #only in desired channels?
     X = np.concatenate([s['epoch'] for s in segments]).astype(np.float32)
     y = np.concatenate([s['label'] for s in segments]).astype(np.float32)
-
+    X = X[:, np.newaxis, :] # uncomment if use detach_rocket
     print(X.shape, y.shape)
 
     # In case of overflow
@@ -120,9 +120,7 @@ if __name__ == "__main__":
 
     train_size = 0.8
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42, stratify=y)
-
     del X, y
-    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("cuda available: ", torch.cuda.is_available())
     print("device: ", device)

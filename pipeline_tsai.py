@@ -63,9 +63,10 @@ if __name__ == "__main__":
     # learn = Learner(dls, model, metrics=accuracy) # Learner; add callback cbs=[ShowGraph()] to see the plot
 
     learn = ts_learner(dls, MiniRocketHead, metrics=accuracy) # idn what is kernel_size
+    learn = ts_learner(dls, MiniRocketHead, metrics=accuracy) # idn what is kernel_size
 
-    # Online feature calculation:
-    # MiniRocket can also be used online, re-calculating the features each minibatch. In this scenario, you do not calculate fixed features one time. The online mode is a bit slower than the offline scanario, but offers more flexibility. Here are some potential uses:
+    # # Online feature calculation:
+    # # MiniRocket can also be used online, re-calculating the features each minibatch. In this scenario, you do not calculate fixed features one time. The online mode is a bit slower than the offline scanario, but offers more flexibility. Here are some potential uses:
 
     # You can experiment with different scaling techniques (no standardization, standardize by sample, normalize, etc).
     # You can use data augmentation is applied to the original time series.
