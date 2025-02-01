@@ -55,8 +55,13 @@ import pandas as pd
 from mne.io import read_raw_edf
 from mne import make_fixed_length_epochs, Annotations
 from timescoring.annotations import Annotation
+from timescoring import scoring
 from timescoring.scoring import SampleScoring, EventScoring
+from timescoring import visualization
 import matplotlib.pyplot as plt
+import matplotlib.colors as mc
+from matplotlib.axes import Axes
+import colorsys
 import time
 from dataloader import extract_epochs, extract_event_info
 import torch
@@ -96,6 +101,7 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
         ref_events.append((start_sample, end_sample))
     ref = Annotation(ref_events, fs, n_samples) 
 
+
     # Build hypothesis Annotation (hyp) from predicted label=1 epochs
     # raw_data.set_annotations(Annotations(onset=0, duration=total_duration, description="data"))
     event_info = extract_event_info(tsv_path)
@@ -130,18 +136,30 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
 
     # Compute sample-based scoring
     sample_scores = SampleScoring(ref, hyp)
+    figSamples = visualization.plotSampleScoring(ref, hyp)
     print("[Sample-based] Sensitivity:", sample_scores.sensitivity)
     print("[Sample-based] Precision:", sample_scores.precision)
     print("[Sample-based] F1-score:", sample_scores.f1)
+    
 
     # Compute event-based scoring
-    event_scores = EventScoring(ref, hyp)
+    param = scoring.EventScoring.Parameters(
+    toleranceStart=30,
+    toleranceEnd=60,
+    minOverlap=0,
+    maxEventDuration=5 * 60,
+    minDurationBetweenEvents=90)
+    event_scores = scoring.EventScoring(ref, hyp, param)
+    figEvents = visualization.plotEventScoring(ref, hyp, param)
     print("[Event-based] Sensitivity:", event_scores.sensitivity)
     print("[Event-based] Precision:", event_scores.precision)
     print("[Event-based] F1-score:", event_scores.f1)
+    
+    plt.show()
+    
 
 if __name__ == "__main__":
-    edf_path = "E:\BIDS_Siena\sub-10\ses-01\eeg\sub-10_ses-01_task-szMonitoring_run-00_eeg.edf"
-    tsv_path = "E:\BIDS_Siena\sub-10\ses-01\eeg\sub-10_ses-01_task-szMonitoring_run-00_events.tsv"
-    model_path = "D:\seizure\models\detach_minirocket.pkl"
+    edf_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-00_eeg.edf"
+    tsv_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-00_events.tsv"
+    model_path = "D:\seizure\models\detach_minirocket_2.pkl"
     evaluate_recording(edf_path, tsv_path, model_path)
