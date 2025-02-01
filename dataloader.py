@@ -85,13 +85,15 @@ def get_channel_from_event_info(event_info):
         chs[i] = chs[i] + "-Avg"
     return chs
 
-def sample_non_seizure_intervals(event_infos, total_duration=0, n_samples=5):
+def sample_non_seizure_intervals(event_infos, total_duration=0, n
+=5):
     """
     total_duration: the total duration of the recording
     """
     no_event_intervals = []
     # if total_duration > 0:
-    #     longest_seizure_duration = total_duration / n_samples
+    #     longest_seizure_duration = total_duration / n
+    
     # else:
     #     longest_seizure_duration = event_infos["duration"].max()
     
@@ -107,11 +109,13 @@ def sample_non_seizure_intervals(event_infos, total_duration=0, n_samples=5):
         no_event_periods.append((seizure_intervals[-1][0]+seizure_intervals[-1][1], total_duration))
 
     # Randomly sample from non-seizure periods
-    # 1. has the proportinal (n_samples=10) length as seizure
+    # 1. has the proportinal (n
+    # =10) length as seizure
     # 2. (future) have same epoch length as seizure(eg. 10s)
 
     sum_seizure_duration = event_infos["duration"].sum()
-    for _ in range(n_samples):
+    for _ in range(n
+    ):
         while no_event_periods:
             selected_period = no_event_periods[np.random.randint(len(no_event_periods))]
             period_duration = selected_period[1] - selected_period[0]
@@ -134,11 +138,11 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
     raw_data = read_raw_edf(file_path, preload=True)
 
     # map the channel name from .tsv and .edf
-    mapping = {
-        ch: ch[:1].upper() + ch[1:2].lower() + ch[2:]
-        for ch in raw_data.ch_names
-    }
-    raw_data.rename_channels(mapping)
+    # mapping = {
+    #     ch: ch[:1].upper() + ch[1:2].lower() + ch[2:]
+    #     for ch in raw_data.ch_names
+    # }
+    # raw_data.rename_channels(mapping)
 
     # Check if the specified channel is in the data
     desired_channels = []
@@ -164,10 +168,13 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
         event_onset = info["onset"] 
         
         # check if out of bound
-        if event_onset < 0:
+        if event_onset <= 0:
             event_onset = 0
         elif event_onset + event_duration > raw_data._last_time:
             event_onset = raw_data._last_time - event_duration # if too long, move the onset to accomodate
+        elif event_duration >= raw_data._last_time:
+            event_onset = 0
+            event_duration = raw_data._last_time
         
         updated_event_info = {"channel": desired_channels, "onset": event_onset, "duration": event_duration}
         updated_event_infos.append(updated_event_info)
@@ -176,7 +183,8 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
 
     updated_event_infos = pd.DataFrame(updated_event_infos)
 
-    no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n_samples=1)
+    no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n
+    =1)
 
     epochs, labels = [], []
     for i, info in updated_event_infos.iterrows():
@@ -208,7 +216,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=100, epoc
 
     return epochs
 
-def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=5, event_offset=100):
+def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=5, event_offset=60):
     event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"))
     epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 
                             event_info, downsample, event_offset, epoch_duration, epoch_overlap)

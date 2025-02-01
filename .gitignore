@@ -1,2 +1,4 @@
 *.pyc
 /BIDS_Siena/
+/models/
+/_pycache_/

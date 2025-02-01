@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import generic_filter
 from scipy.signal import correlate
 import heapq
+from mne.io import read_raw_edf
 
 
 def get_feature_matrix(segments):
@@ -170,3 +171,30 @@ def get_labels_from_info(times, event_info):
         labels[event_indices] = 1
 
     return labels
+
+def print_confusion_matrix(ConfMat, label_strings=None, title='Confusion matrix'):
+    """Print confusion matrix as text to terminal"""
+
+    if label_strings is None:
+        label_strings = ConfMat.shape[0] * ['']
+
+    print(title)
+    print(len(title) * '-')
+    # Make printable matrix:
+    print_mat = []
+    for i, row in enumerate(ConfMat):
+        print_mat.append([label_strings[i]] + list(row))
+    print(tabulate(print_mat, headers=['True\Pred'] + label_strings, tablefmt='orgtbl'))
+
+def plot_confusion_matrix(ConfMat, label_strings=None, title='Confusion matrix', cmap=plt.cm.get_cmap('Blues')):
+    """Plot confusion matrix in a separate window"""
+    plt.imshow(ConfMat, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    if label_strings:
+        tick_marks = np.arange(len(label_strings))
+        plt.xticks(tick_marks, label_strings, rotation=90)
+        plt.yticks(tick_marks, label_strings)
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')

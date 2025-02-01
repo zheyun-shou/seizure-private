@@ -7,16 +7,18 @@ import os
 import time
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, confusion_matrix, precision_recall_fscore_support
 from dataloader import read_siena_dataset
 from wavelet_utils import wavelet_decompose_channels_from_segment
-from custom_utils import get_feature_matrix, get_labels_from_info
+from custom_utils import get_feature_matrix, get_labels_from_info, plot_confusion_matrix, print_confusion_matrix
 import torch
 from sklearn import svm
 from sktime.classification.kernel_based import RocketClassifier
 #pip install numpy scikit-learn pyts torch matplotlib sktime==0.30.0
 #pip install git+https://github.com/gon-uri/detach_rocket
 from detach_rocket.detach_classes import DetachRocket
-#from tsai.all import *
+import joblib
+from analysis import Analyzer
 def plot_eeg_segment(segment_data, times, channel_name, event_info):
     """
     Plots a segment of EEG data.
@@ -111,7 +113,7 @@ if __name__ == "__main__":
 
     #only in desired channels?
     X = np.concatenate([s['epoch'] for s in segments]).astype(np.float32)
-    y = np.concatenate([s['label'] for s in segments]).astype(np.float32)
+    y = np.concatenate([s['label'] for s in segments]).astype(int)
     X = X[:, np.newaxis, :] # uncomment if use detach_rocket
     print(X.shape, y.shape)
 
@@ -139,8 +141,15 @@ if __name__ == "__main__":
     end_model_time = time.time()
     print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
 
+    analyzer = Analyzer(print_conf_mat=True)
+    analyzer.analyze_classification(y_test, y_pred, ['normal', 'seizure'])
     accuracy = np.mean(y_pred == y_test)
     print(f"Model accuracy: {accuracy:.2f}")
+
+    # save model
+    joblib.dump(model, 'D:/seizure/models/detach_minirocket_2.pkl')
+
+
 
     # plt.plot(times, predicted)
     # plt.show()
