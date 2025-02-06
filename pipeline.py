@@ -114,7 +114,7 @@ if __name__ == "__main__":
     #only in desired channels?
     X = np.concatenate([s['epoch'] for s in segments]).astype(np.float32)
     y = np.concatenate([s['label'] for s in segments]).astype(int)
-    X = X[:, np.newaxis, :] # uncomment if use detach_rocket
+    #X = X[:, np.newaxis, :] # uncomment if use detach_rocket
     print(X.shape, y.shape)
 
     # In case of overflow
@@ -142,12 +142,12 @@ if __name__ == "__main__":
     print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
 
     analyzer = Analyzer(print_conf_mat=True)
-    analyzer.analyze_classification(y_test, y_pred, ['normal', 'seizure'])
+    analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
     accuracy = np.mean(y_pred == y_test)
     print(f"Model accuracy: {accuracy:.2f}")
 
     # save model
-    joblib.dump(model, 'D:/seizure/models/detach_minirocket_2.pkl')
+    joblib.dump(model, 'D:/seizure/models/detach_minirocket_multivariate.pkl')
 
 
 

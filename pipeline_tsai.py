@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
     y_test = y[splits[1]]
     analyzer = Analyzer(print_conf_mat=True)
-    analyzer.analyze_classification(y_test, preds, ['normal', 'seizure'])
+    analyzer.analyze_classification(preds, y_test, ['normal', 'seizure'])
     accuracy = np.mean(preds == y_test)
     print(f"Model accuracy: {accuracy:.2f}")
 

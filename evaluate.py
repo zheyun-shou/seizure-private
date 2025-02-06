@@ -75,7 +75,8 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     # raw_data.pick_channels(desired_channels, verbose=False)
     total_duration = raw_data._last_time
     fs = raw_data.info["sfreq"] / downsample # final sampling freq after downsample
-    n_samples = int(total_duration * fs)#?
+
+    
 
     # Build reference Annotation (ref) from .tsv
     
@@ -96,10 +97,16 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     df_tsv = pd.read_csv(tsv_path, sep='\t')
     ref_events = []
     for _, row in df_tsv.iterrows():
-        start_sample = int(row['onset'])
-        end_sample = int(row['onset'] + row['duration'])
-        ref_events.append((start_sample, end_sample))
-    ref = Annotation(ref_events, fs, n_samples) 
+        start_time = int(row['onset'])
+        end_time = int(row['onset'] + row['duration'])
+        #divide the time into epochs
+        # for i in range(start_time, end_time, epoch_duration):
+        #     ref_events.append((i, i + epoch_duration))
+        ref_events.append((start_time, end_time))
+
+    n_samples = int(total_duration * fs)#?
+
+    ref = Annotation(ref_events, fs, n_samples)
 
 
     # Build hypothesis Annotation (hyp) from predicted label=1 epochs
@@ -112,14 +119,19 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     for ep in epochs:
         epoch = ep.get_data() # shape (n_epochs, n_channels, n_times)
         epoch_labels = ep.metadata["label"].to_numpy()
+        time_start = ep.metadata["time_start"].to_numpy()
+        time_end = ep.metadata["time_end"].to_numpy()
         n_epochs, n_channels, n_times = epoch.shape
-        epoch = epoch.reshape(n_epochs * n_channels, n_times)
-        epoch_labels = np.tile(ep.metadata["label"], (n_channels))
+        #epoch = epoch.reshape(n_epochs * n_channels, n_times)
+        #epoch_labels = np.tile(ep.metadata["label"], (n_channels))
 
-        segments.append({"epoch": epoch, "label": epoch_labels}) 
+        segments.append({"epoch": epoch, "label": epoch_labels, "time_start": time_start, "time_end": time_end}) 
 
     X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
-    X_test = X_test[:, np.newaxis, :]
+    y_test = np.concatenate([s["label"] for s in segments]).astype(int)
+    time_start_test = np.concatenate([s["time_start"] for s in segments])
+    time_end_test = np.concatenate([s["time_end"] for s in segments])
+    #X_test = X_test[:, np.newaxis, :]
     del segments
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -127,12 +139,13 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     end_model_time = time.time()
     print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
     hyp_events = []
-    for i, pred in enumerate(y_pred):
+    
+    for pred, time_start, time_end in zip(y_pred, time_start_test, time_end_test):
         if pred == 1:
-            start_sample = i * epoch_duration
-            end_sample = (i + 1) * epoch_duration
-            hyp_events.append((start_sample, end_sample))
+            hyp_events.append((time_start, time_end))
+
     hyp = Annotation(hyp_events, fs, n_samples)
+    
 
     # Compute sample-based scoring
     sample_scores = SampleScoring(ref, hyp)
@@ -147,19 +160,26 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     toleranceStart=30,
     toleranceEnd=60,
     minOverlap=0,
-    maxEventDuration=5 * 60,
+    maxEventDuration=5*60,
     minDurationBetweenEvents=90)
     event_scores = scoring.EventScoring(ref, hyp, param)
     figEvents = visualization.plotEventScoring(ref, hyp, param)
     print("[Event-based] Sensitivity:", event_scores.sensitivity)
     print("[Event-based] Precision:", event_scores.precision)
     print("[Event-based] F1-score:", event_scores.f1)
+
+    from analysis import Analyzer
+
+    analyzer = Analyzer(print_conf_mat=True)
+    analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
+    accuracy = np.mean(y_pred == y_test)
+    print(f"Model accuracy: {accuracy:.2f}")
     
     plt.show()
     
 
 if __name__ == "__main__":
-    edf_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-00_eeg.edf"
-    tsv_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-00_events.tsv"
-    model_path = "D:\seizure\models\detach_minirocket_2.pkl"
+    edf_path = "E:\BIDS_Siena\sub-03\ses-01\eeg\sub-03_ses-01_task-szMonitoring_run-00_eeg.edf"
+    tsv_path = "E:\BIDS_Siena\sub-03\ses-01\eeg\sub-03_ses-01_task-szMonitoring_run-00_events.tsv"
+    model_path = "D:\seizure\models\detach_minirocket_multivariate.pkl"
     evaluate_recording(edf_path, tsv_path, model_path)
