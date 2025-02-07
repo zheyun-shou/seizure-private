@@ -128,7 +128,7 @@ def sample_non_seizure_intervals(event_infos, total_duration=0, n
 
     return pd.DataFrame(no_event_intervals)
 
-def extract_epochs(file_path, event_info, downsample=2.0, event_offset=60, epoch_duration=10, epoch_overlap=5):
+def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_duration=10, epoch_overlap=0):
     """
     Extract seizure and nonseizure epochs from a specific recording based on subject, session, task, and run.
 
@@ -163,6 +163,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=60, epoch
     # Extend the event duration by the event offset,
     updated_event_infos = []
     for i, info in event_info.iterrows():
+        
 
         event_duration = info["duration"] + event_offset
         event_onset = info["onset"] 
@@ -170,8 +171,8 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=60, epoch
         # check if out of bound
         if event_onset <= 0:
             event_onset = 0
-        elif event_onset + event_duration > raw_data._last_time:
-            event_onset = raw_data._last_time - event_duration # if too long, move the onset to accomodate
+        elif event_onset + event_duration >= raw_data._last_time:
+            event_onset = raw_data._last_time - event_duration if raw_data._last_time - event_duration >= 0 else 0 # move the event onset to accomodate the event duration
         elif event_duration >= raw_data._last_time:
             event_onset = 0
             event_duration = raw_data._last_time
@@ -184,11 +185,18 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=60, epoch
     updated_event_infos = pd.DataFrame(updated_event_infos)
 
     no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n
-    =10)
+    =1)
 
     epochs, labels = [], []
     for i, info in updated_event_infos.iterrows():
-        raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
+        
+        start = max(0, info["onset"])
+        end = min(info["onset"] + info["duration"], raw_data._last_time)
+        
+        if start >= end:
+            continue
+        
+        raw_copy = raw_data.copy().crop(start, end, verbose=False)
         # create epochs
         e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
                                             overlap=epoch_overlap, preload=True)
@@ -222,7 +230,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=60, epoch
 
     return epochs
 
-def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=0, event_offset=60):
+def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=0, event_offset=0):
     event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"))
     epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 
                             event_info, downsample, event_offset, epoch_duration, epoch_overlap)
@@ -249,7 +257,7 @@ def read_siena_dataset(bids_root, max_workers=4):
 
     if max_workers == 1:
         for ids in recording_ids:
-            segment = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=0, event_offset=60)
+            segment = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=0, event_offset=0)
             segments.extend(segment)
     else:
         # multirpocessing in cpu

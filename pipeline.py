@@ -91,7 +91,7 @@ def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
 if __name__ == "__main__":
     # dname = os.path.dirname(os.path.abspath(__file__))
     # bids_root = dname + '\BIDS_Siena' 
-    bids_root = 'E:\BIDS_Siena' # Replace with your actual path
+    bids_root = 'E:\BIDS_TUSZ' # Replace with your actual path
     #bids_root = 'E:\BIDS_CHB-MIT'
 
     # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     print(f"Model accuracy: {accuracy:.2f}")
 
     # save model
-    joblib.dump(model, 'D:/seizure/models/detach_minirocket_multivariate.pkl')
+    joblib.dump(model, 'D:/seizure/models/detach_minirocket_multivariate_tusz.pkl')
 
 
 
