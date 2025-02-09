@@ -1,5 +1,6 @@
 *.pyc
-/BIDS_Siena/
+# /BIDS_Siena/
+/BIDS_*/
 /models/
 /_pycache_/
 /epilepsy2bids/

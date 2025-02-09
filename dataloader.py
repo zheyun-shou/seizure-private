@@ -23,9 +23,17 @@ def extract_event_info(file_path):
         raise ValueError(f"One or more of the required columns {required_columns} not found in the file.")
     
     # Extract the relevant columns: onset, duration, and channel
+    # TODO: create updated info when eventType "contains" the keyword "sz"
+        # if info["eventType"] == "sz" or info["eventType"] == "sz_foc_ia":
+    valid_idx = []
+    for i, row in events_df.iterrows():
+        if row["eventType"].__contains__("sz"):
+            valid_idx.append(i)
     events_info = events_df[['onset', 'duration', 'channels']]
-    
-    return events_info
+    if len(valid_idx) > 0:
+        return events_info.loc[valid_idx, :]
+    else:
+        return None
 
 def read_ids_from_bids(bids_root):
     """
@@ -164,7 +172,6 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
     updated_event_infos = []
     for i, info in event_info.iterrows():
         
-
         event_duration = info["duration"] + event_offset
         event_onset = info["onset"] 
         
@@ -189,11 +196,12 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
 
     epochs, labels = [], []
     for i, info in updated_event_infos.iterrows():
-        
+        # add duration length check to make sure at least one epoch is available
+        duration = max(info["duration"], epoch_duration) 
         start = max(0, info["onset"])
-        end = min(info["onset"] + info["duration"], raw_data._last_time)
-        
-        if start >= end:
+        end = min(info["onset"] + duration, raw_data._last_time)
+        # skip if cannot create a valid epoch
+        if start >= end or end - start < duration:
             continue
         
         raw_copy = raw_data.copy().crop(start, end, verbose=False)
@@ -232,6 +240,8 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
 
 def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=0, event_offset=0):
     event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"))
+    if event_info is None:
+        return None
     epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 
                             event_info, downsample, event_offset, epoch_duration, epoch_overlap)
     segments = []
@@ -258,13 +268,15 @@ def read_siena_dataset(bids_root, max_workers=4):
     if max_workers == 1:
         for ids in recording_ids:
             segment = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=0, event_offset=0)
-            segments.extend(segment)
+            if segment is not None:
+                segments.extend(segment)
     else:
         # multirpocessing in cpu
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_recording, ids, bids_root) for ids in recording_ids]
             for future in as_completed(futures):
-                segments.extend(future.result())
+                if future.result() is not None:
+                    segments.extend(future.result())
 
     return event_infos, segments
 

@@ -89,16 +89,17 @@ def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
     return overlap_ratios
 
 if __name__ == "__main__":
-    # dname = os.path.dirname(os.path.abspath(__file__))
+    dname = os.path.dirname(os.path.abspath(__file__))
     # bids_root = dname + '\BIDS_Siena' 
-    bids_root = 'E:\BIDS_TUSZ' # Replace with your actual path
+    bids_root = dname + '\BIDS_TUSZ'
+    # bids_root = 'E:\BIDS_TUSZ' # Replace with your actual path
     #bids_root = 'E:\BIDS_CHB-MIT'
 
     # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
 
     # plot_eeg_segment(segment, times, desired_channel, event_info)
 
-    event_infos, segments = read_siena_dataset(bids_root, max_workers=2)
+    event_infos, segments = read_siena_dataset(bids_root, max_workers=1)
 
     # start_feature_time = time.time()
     # features = get_feature_matrix(segments)
