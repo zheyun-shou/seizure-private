@@ -63,10 +63,11 @@ import matplotlib.colors as mc
 from matplotlib.axes import Axes
 import colorsys
 import time
-from dataloader import extract_epochs, extract_event_info
+from dataloader import extract_epochs, extract_event_info, get_ids_from_filename
 import torch
+import math
 
-def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_duration=10, epoch_overlap=0):
+def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_duration=10, epoch_overlap=0, plot=False):
     start_model_time = time.time()
 
     model = joblib.load(model_path)
@@ -154,7 +155,9 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     print("[Sample-based] Precision:", sample_scores.precision)
     print("[Sample-based] F1-score:", sample_scores.f1)
     
-
+    subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
+    if plot:
+        figSamples.savefig(f"D:/seizure/results/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_sample_scoring.png")
     # Compute event-based scoring
     param = scoring.EventScoring.Parameters(
     toleranceStart=30,
@@ -175,11 +178,69 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     accuracy = np.mean(y_pred == y_test)
     print(f"Model accuracy: {accuracy:.2f}")
     
-    plt.show()
+    # plt.show()
+    # save the plots to D:\seizure\results
+    if plot:
+        figSamples.savefig(f"D:/seizure/results/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_event_scoring.png")
+
+    return sample_scores, event_scores
     
+def append_notnan_and_count_nan(value, lst, counter):
+    if math.isnan(value):
+        counter += 1
+    else:
+        lst.append(value)
+    return counter
 
 if __name__ == "__main__":
-    edf_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-01_eeg.edf"
-    tsv_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-01_events.tsv"
+    # edf_path = "E:\BIDS_Siena\sub-10\ses-01\eeg\sub-10_ses-01_task-szMonitoring_run-05_eeg.edf"
+    # tsv_path = "E:\BIDS_Siena\sub-10\ses-01\eeg\sub-10_ses-01_task-szMonitoring_run-05_events.tsv"
+    # model_path = "D:\seizure\models\detach_minirocket_multivariate_tusz.pkl"
+    # evaluate_recording(edf_path, tsv_path, model_path)
+    #iterate over all recordings in BIDS_Siena
+    import os
+    bids_root_test = 'E:\BIDS_Siena'
     model_path = "D:\seizure\models\detach_minirocket_multivariate_tusz.pkl"
-    evaluate_recording(edf_path, tsv_path, model_path)
+    sample_sensitivity = []
+    sample_precision = []
+    sample_f1 = []
+    event_sensitivity = []
+    event_precision = []
+    event_f1 = []
+    sample_precision_nan = 0
+    sample_f1_nan = 0
+    event_precision_nan = 0
+    event_f1_nan = 0
+    recording_counter = 0
+    for root, dirs, files in os.walk(bids_root_test):
+        for file in files:
+            if file.endswith(".edf"):
+                recording_counter += 1
+                edf_path = os.path.join(root, file)
+                tsv_path = os.path.join(root, file.replace("_eeg.edf", "_events.tsv"))
+                print(f"Evaluating {edf_path}")
+                sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path,plot=False)
+                sample_sensitivity.append(sample_scores.sensitivity)
+                event_sensitivity.append(event_scores.sensitivity)
+                sample_precision_nan = append_notnan_and_count_nan(sample_scores.precision, sample_precision, sample_precision_nan)
+                sample_f1_nan = append_notnan_and_count_nan(sample_scores.f1, sample_f1, sample_f1_nan)
+                event_precision_nan = append_notnan_and_count_nan(event_scores.precision, event_precision, event_precision_nan)
+                event_f1_nan = append_notnan_and_count_nan(event_scores.f1, event_f1, event_f1_nan)
+
+                
+    
+    #calculate average scores
+    print(f"Total recordings: {recording_counter}")
+    print("Average sample-based scores:")
+    print("Sensitivity:", np.mean(sample_sensitivity))
+    print("Precision:", np.mean(sample_precision))
+    print("NaN in precision:", sample_precision_nan)
+    print("F1-score:", np.mean(sample_f1))
+    print("NaN in F1-score:", sample_f1_nan)
+    print("Average event-based scores:")
+    print("Sensitivity:", np.mean(event_sensitivity))
+    print("Precision:", np.mean(event_precision))
+    print("NaN in precision:", event_precision_nan)
+    print("F1-score:", np.mean(event_f1))
+    print("NaN in F1-score:", event_f1_nan)
+
