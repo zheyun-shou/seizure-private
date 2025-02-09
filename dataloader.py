@@ -6,7 +6,7 @@ import os
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-def extract_event_info(file_path):
+def extract_event_info(file_path, epoch_duration=10):
     """
     Extract event onset, duration, and channel from a BIDS-formatted TSV file.
     
@@ -27,11 +27,14 @@ def extract_event_info(file_path):
         # if info["eventType"] == "sz" or info["eventType"] == "sz_foc_ia":
     valid_idx = []
     for i, row in events_df.iterrows():
-        if row["eventType"].__contains__("sz"):
+        if row["eventType"].__contains__("sz") or row["eventType"].__contains__("seiz"):
             valid_idx.append(i)
+        if row["duration"] < epoch_duration:
+            events_df.loc[i, "duration"] = epoch_duration
     events_info = events_df[['onset', 'duration', 'channels']]
     if len(valid_idx) > 0:
         return events_info.loc[valid_idx, :]
+        
     else:
         return None
 
@@ -239,7 +242,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
     return epochs
 
 def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=0, event_offset=0):
-    event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"))
+    event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"),epoch_duration=10)
     if event_info is None:
         return None
     epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 

@@ -179,7 +179,7 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     
 
 if __name__ == "__main__":
-    edf_path = "E:\BIDS_TUSZ\sub-008\ses-00\eeg\sub-008_ses-00_task-szMonitoring_run-01_eeg.edf"
-    tsv_path = "E:\BIDS_TUSZ\sub-008\ses-00\eeg\sub-008_ses-00_task-szMonitoring_run-01_events.tsv"
-    model_path = "D:\seizure\models\detach_minirocket_multivariate.pkl"
+    edf_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-01_eeg.edf"
+    tsv_path = "E:\BIDS_Siena\sub-00\ses-01\eeg\sub-00_ses-01_task-szMonitoring_run-01_events.tsv"
+    model_path = "D:\seizure\models\detach_minirocket_multivariate_tusz.pkl"
     evaluate_recording(edf_path, tsv_path, model_path)
