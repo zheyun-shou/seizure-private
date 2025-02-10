@@ -1,0 +1,12 @@
+Average sample-based scores:
+Sensitivity: 0.6780487762616326
+Precision: 0.8345303838205499
+NaN in precision: 3
+F1-score: 0.7484333861520931
+NaN in F1-score: 3
+Average event-based scores:
+Sensitivity: 0.7113821138211381
+Precision: 0.6578947368421053
+NaN in precision: 3
+F1-score: 0.6921052631578948
+NaN in F1-score: 3

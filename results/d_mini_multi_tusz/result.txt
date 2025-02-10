@@ -1,0 +1,13 @@
+Total recordings: 41
+Average sample-based scores:
+Sensitivity: 0.6952420023514719
+Precision: 0.8376246616631234
+NaN in precision: 2
+F1-score: 0.7383110303003146
+NaN in F1-score: 2
+Average event-based scores:
+Sensitivity: 0.7682926829268293
+Precision: 0.717948717948718
+NaN in precision: 2
+F1-score: 0.7478632478632479
+NaN in F1-score: 2

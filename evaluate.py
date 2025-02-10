@@ -157,7 +157,7 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     
     subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
     if plot:
-        figSamples.savefig(f"D:/seizure/results/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_sample_scoring.png")
+        figSamples.savefig(f"D:/seizure/results/d_mini_multi_tusz_sub/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_sample_scoring.png")
     # Compute event-based scoring
     param = scoring.EventScoring.Parameters(
     toleranceStart=30,
@@ -181,7 +181,7 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     # plt.show()
     # save the plots to D:\seizure\results
     if plot:
-        figEvents.savefig(f"D:/seizure/results/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_event_scoring.png")
+        figEvents.savefig(f"D:/seizure/results/d_mini_multi_tusz_sub/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_event_scoring.png")
 
     return sample_scores, event_scores
     
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     #iterate over all recordings in BIDS_Siena
     import os
     bids_root_test = 'E:\BIDS_Siena'
-    model_path = "D:\seizure\models\detach_minirocket_multivariate_tusz.pkl"
+    model_path = "D:\seizure\models\d_mini_multivariate_tusz_sub.pkl"
     sample_sensitivity = []
     sample_precision = []
     sample_f1 = []
