@@ -15,6 +15,7 @@ def extract_event_info(file_path, epoch_duration=10):
     """
     
     # Load the TSV file using pandas
+    
     events_df = pd.read_csv(file_path, sep='\t')
     
     # Check if the relevant columns exist in the dataframe
@@ -146,6 +147,10 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
     """
 
     # Load the EDF file using MNE
+    # extract filename from filepath
+    
+    filename = os.path.basename(file_path)
+    subject_id, session_id, task_id, run_id = get_ids_from_filename(filename)
     raw_data = read_raw_edf(file_path, preload=True)
 
     # map the channel name from .tsv and .edf
@@ -225,7 +230,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
             time_start.append(t_start)
             time_end.append(t_end)
          # label the epochs, 1: seizure, 0: non-seizure       
-        e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end})
+        e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
         epochs.append(e)
 
 
@@ -236,7 +241,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
         time_start = [t[0] / raw_copy.info["sfreq"] for t in e.events]
         time_end = [t[0] / raw_copy.info["sfreq"] + epoch_duration for t in e.events]
         label = [0] * len(e.events)
-        e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end})
+        e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
         epochs.append(e)
 
     return epochs
@@ -254,13 +259,15 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_o
         # size of epoch labels: n_epochs
         epoch = ep.get_data()
         epoch_labels = ep.metadata["label"].to_numpy()
+        epoch_subject = ep.metadata["subject_id"].to_numpy()
+        
         
         n_epochs, n_channels, n_times = epoch.shape
         
         #epoch = epoch.reshape(n_epochs * n_channels, n_times)
         # epoch_labels = np.tile(ep.metadata["label"], (n_channels))
         
-        segments.append({"epoch": epoch, "label": epoch_labels})
+        segments.append({"epoch": epoch, "label": epoch_labels, "subject": epoch_subject})
         # TODO: Add properties that allows trace back to the original recording
     return segments
 

@@ -181,7 +181,7 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     # plt.show()
     # save the plots to D:\seizure\results
     if plot:
-        figSamples.savefig(f"D:/seizure/results/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_event_scoring.png")
+        figEvents.savefig(f"D:/seizure/results/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_event_scoring.png")
 
     return sample_scores, event_scores
     
@@ -219,7 +219,7 @@ if __name__ == "__main__":
                 edf_path = os.path.join(root, file)
                 tsv_path = os.path.join(root, file.replace("_eeg.edf", "_events.tsv"))
                 print(f"Evaluating {edf_path}")
-                sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path,plot=False)
+                sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path,plot=True)
                 sample_sensitivity.append(sample_scores.sensitivity)
                 event_sensitivity.append(event_scores.sensitivity)
                 sample_precision_nan = append_notnan_and_count_nan(sample_scores.precision, sample_precision, sample_precision_nan)

@@ -198,3 +198,72 @@ def plot_confusion_matrix(ConfMat, label_strings=None, title='Confusion matrix',
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
+
+def roi_overlap_ratio(start_time_roi, end_time_roi, event_info):
+    """
+    Calculate the overlap ratio of an extracted ROI with reference to ground truth events.
+    
+    Parameters:
+    - start_time_roi (float): The start time of the ROI (in seconds).
+    - end_time_roi (float): The end time of the ROI (in seconds).
+    - event_info (pandas.DataFrame): DataFrame containing 'onset', 'duration', and 'channel' of events.
+    
+    Returns:
+    - overlap_ratios (list): List of overlap ratios for each event.
+    """
+    
+    overlap_ratios = []
+    
+    for _, event in event_info.iterrows():
+        onset_event = event['onset']
+        duration_event = event['duration']
+        end_time_event = onset_event + duration_event
+        
+        # Calculate overlap times
+        overlap_start = max(start_time_roi, onset_event)
+        overlap_end = min(end_time_roi, end_time_event)
+        
+        # If there is an overlap, calculate the overlap duration
+        if overlap_start < overlap_end:
+            overlap_duration = overlap_end - overlap_start
+        else:
+            overlap_duration = 0
+        
+        # Calculate the overlap ratio
+        event_duration = duration_event
+        if event_duration > 0:
+            overlap_ratio = overlap_duration / event_duration
+        else:
+            overlap_ratio = 0
+        
+        overlap_ratios.append(overlap_ratio)
+    
+    return overlap_ratios
+
+def plot_eeg_segment(segment_data, times, channel_name, event_info):
+    """
+    Plots a segment of EEG data.
+
+    Parameters:
+    - segment_data (ndarray): Time-series data for the segment.
+    - times (ndarray): Time values corresponding to the segment.
+    - channel_name (str): Name of the channel being plotted.
+    """
+    #highlight the seizure events
+    # for event in seizure_events:
+     
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(times, segment_data.T)
+    for _, event in event_info.iterrows():
+        onset_event = event['onset']
+        duration_event = event['duration']
+        end_time_event = onset_event + duration_event
+        if end_time_event > times[-1] or onset_event < times[0]:
+            continue
+        plt.axvspan(onset_event, end_time_event, color='green', alpha=0.2)
+    plt.xlabel('Time (s)')
+    plt.ylabel('Amplitude (µV)')
+    plt.title(f'EEG Segment for Channel {channel_name}')
+    plt.grid(True)
+    # plt.show()

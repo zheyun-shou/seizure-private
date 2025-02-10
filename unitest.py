@@ -1,13 +1,27 @@
-from mne import make_fixed_length_events
-from mne.io import read_raw_edf
+from dataloader import get_ids_from_filename
+import os
 
-edf_path = "E:\\BIDS_TUSZ\\sub-317\\ses-01\\eeg\\sub-317_ses-01_task-szMonitoring_run-07_eeg.edf"
-raw = read_raw_edf(edf_path, preload=False)
-print(f"采样率: {raw.info['sfreq']} Hz")
-print(f"总时长: {raw.times[-1]} sec")
+if __name__ == "__main__":
+    # Test get_ids_from_filename
+    bids_root = 'E:\BIDS_TUSZ' # Replace with your actual path
+    recording_ids = []
+    for root, dirs, files in os.walk(bids_root):
+        for file in files:
+            if file.endswith(".edf"):
+                print(file)
+                base = file[:-8]  # remove "_eeg.edf" from the end
+                json_file = base + "_eeg.json"
+                tsv_file = base + "_events.tsv"
+                if os.path.exists(os.path.join(root, tsv_file)) and os.path.exists(os.path.join(root, json_file)):
+                    subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
+                    # create a tree-like dictionary to store the data
+                    ids = {
+                        'subject_id': subject_id,
+                        'session_id': session_id,
+                        'task_id': task_id,
+                        'run_id': run_id,
+                    }
+                    recording_ids.append(ids)
+                    #print(ids['subject_id'], ids['session_id'], ids['task_id'], ids['run_id'])
 
-try:
-    events = make_fixed_length_events(raw, duration=10, overlap=0)
-    print(f"成功生成 {len(events)} 个事件")
-except Exception as e:
-    print(f"错误: {e}")
+    
