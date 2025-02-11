@@ -25,16 +25,15 @@ import random
 def subject_wise_split(segments, train_ratio=0.8):
     # use np.unique to get the unique subjects
     subjects = np.concatenate([s['subject'] for s in segments]) #array
-    #print(subjects)
-    random.shuffle(subjects)
-    train_subjects = subjects[:int(len(subjects) * train_ratio)] # array
+    unique_subject = np.unique(subjects)
+    train_subject_idx, test_subject_idx = train_test_split(unique_subject, train_size=train_ratio)
     train_segments = []
     test_segments = []
-    for segment in segments:
-        if np.unique(segment['subject']) in train_subjects:
-            train_segments.append(segment)
+    for s in segments:
+        if s['subject'][0] in train_subject_idx:
+            train_segments.append(s)
         else:
-            test_segments.append(segment)
+            test_segments.append(s)
     return train_segments, test_segments
 
 if __name__ == "__main__":

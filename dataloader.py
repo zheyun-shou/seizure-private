@@ -264,7 +264,7 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_o
         
         n_epochs, n_channels, n_times = epoch.shape
         
-        #epoch = epoch.reshape(n_epochs * n_channels, n_times)
+        # epoch = epoch.reshape(n_epochs * n_channels, n_times)
         # epoch_labels = np.tile(ep.metadata["label"], (n_channels))
         
         segments.append({"epoch": epoch, "label": epoch_labels, "subject": epoch_subject})
