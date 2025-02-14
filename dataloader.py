@@ -140,7 +140,7 @@ def sample_non_seizure_intervals(event_infos, total_duration=0, n
 
     return pd.DataFrame(no_event_intervals)
 
-def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_duration=10, epoch_overlap=0):
+def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_duration=10, epoch_overlap=0, inference=False):
     """
     Extract seizure and nonseizure epochs from a specific recording based on subject, session, task, and run.
 
@@ -177,45 +177,76 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
     )
     
     # Extend the event duration by the event offset,
-    updated_event_infos = []
-    for i, info in event_info.iterrows():
-        
-        event_duration = info["duration"] + event_offset
-        event_onset = info["onset"] 
-        
-        # check if out of bound
-        if event_onset <= 0:
-            event_onset = 0
-        elif event_onset + event_duration >= raw_data._last_time:
-            event_onset = raw_data._last_time - event_duration if raw_data._last_time - event_duration >= 0 else 0 # move the event onset to accomodate the event duration
-        elif event_duration >= raw_data._last_time:
-            event_onset = 0
-            event_duration = raw_data._last_time
-        
-        updated_event_info = {"channel": desired_channels, "onset": event_onset, "duration": event_duration}
-        updated_event_infos.append(updated_event_info)
+    epochs = []
+    if not inference:
+        updated_event_infos = []
+        for i, info in event_info.iterrows():
+            
+            event_duration = info["duration"] + event_offset
+            event_onset = info["onset"] 
+            
+            # check if out of bound
+            if event_onset <= 0:
+                event_onset = 0
+            elif event_onset + event_duration >= raw_data._last_time:
+                event_onset = raw_data._last_time - event_duration if raw_data._last_time - event_duration >= 0 else 0 # move the event onset to accomodate the event duration
+            elif event_duration >= raw_data._last_time:
+                event_onset = 0
+                event_duration = raw_data._last_time
+            
+            updated_event_info = {"channel": desired_channels, "onset": event_onset, "duration": event_duration}
+            updated_event_infos.append(updated_event_info)
 
-        raw_data.set_annotations(annotations=Annotations(onset=event_onset, duration=event_duration, description="seizure"))
+            raw_data.set_annotations(annotations=Annotations(onset=event_onset, duration=event_duration, description="seizure"))
 
-    updated_event_infos = pd.DataFrame(updated_event_infos)
+        updated_event_infos = pd.DataFrame(updated_event_infos)
 
-    no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n
-    =1)
+        no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n
+        =1)
 
-    epochs, labels = [], []
-    for i, info in updated_event_infos.iterrows():
-        # add duration length check to make sure at least one epoch is available
-        duration = max(info["duration"], epoch_duration) 
-        start = max(0, info["onset"])
-        end = min(info["onset"] + duration, raw_data._last_time)
-        # skip if cannot create a valid epoch
-        if start >= end or end - start < duration:
-            continue
-        
-        raw_copy = raw_data.copy().crop(start, end, verbose=False)
-        # create epochs
-        e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
-                                            overlap=epoch_overlap, preload=True)
+        for i, info in updated_event_infos.iterrows():
+            # add duration length check to make sure at least one epoch is available
+            duration = max(info["duration"], epoch_duration) 
+            start = max(0, info["onset"])
+            end = min(info["onset"] + duration, raw_data._last_time)
+            # skip if cannot create a valid epoch
+            if start >= end or end - start < duration:
+                continue
+            
+            raw_copy = raw_data.copy().crop(start, end, verbose=False)
+            # create epochs
+            e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
+                                                overlap=epoch_overlap, preload=True)
+            label = []
+            time_start = []
+            time_end = []
+            for t in e.events:
+                t_start = t[0] / raw_copy.info["sfreq"]
+                t_end = t[0] / raw_copy.info["sfreq"] + epoch_duration
+                # if the epoch has overlap with seizure, label it as seizure
+                if t_end > event_info["onset"][i] and t_start < event_info["onset"][i] + event_info["duration"][i] : 
+                    label.append(1)
+                else:
+                    label.append(0)
+                time_start.append(t_start)
+                time_end.append(t_end)
+            # label the epochs, 1: seizure, 0: non-seizure       
+            e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
+            epochs.append(e)
+
+
+        for i, info in no_event_info.iterrows():
+            raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
+            e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
+                                                overlap=epoch_overlap, preload=True, verbose=False)
+            time_start = [t[0] / raw_copy.info["sfreq"] for t in e.events]
+            time_end = [t[0] / raw_copy.info["sfreq"] + epoch_duration for t in e.events]
+            label = [0] * len(e.events)
+            e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
+            epochs.append(e)
+    else:
+        e = make_fixed_length_epochs(raw_data, duration=epoch_duration,
+                                                overlap=epoch_overlap, preload=True)
         label = []
         time_start = []
         time_end = []
@@ -229,18 +260,6 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
                 label.append(0)
             time_start.append(t_start)
             time_end.append(t_end)
-         # label the epochs, 1: seizure, 0: non-seizure       
-        e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
-        epochs.append(e)
-
-
-    for i, info in no_event_info.iterrows():
-        raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
-        e = make_fixed_length_epochs(raw_copy, duration=epoch_duration,
-                                            overlap=epoch_overlap, preload=True, verbose=False)
-        time_start = [t[0] / raw_copy.info["sfreq"] for t in e.events]
-        time_end = [t[0] / raw_copy.info["sfreq"] + epoch_duration for t in e.events]
-        label = [0] * len(e.events)
         e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
         epochs.append(e)
 

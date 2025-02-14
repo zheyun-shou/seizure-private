@@ -100,20 +100,16 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
     for _, row in df_tsv.iterrows():
         start_time = int(row['onset'])
         end_time = int(row['onset'] + row['duration'])
-        #divide the time into epochs
-        # for i in range(start_time, end_time, epoch_duration):
-        #     ref_events.append((i, i + epoch_duration))
         ref_events.append((start_time, end_time))
 
     n_samples = int(total_duration * fs)#?
 
     ref = Annotation(ref_events, fs, n_samples)
 
-
     # Build hypothesis Annotation (hyp) from predicted label=1 epochs
     # raw_data.set_annotations(Annotations(onset=0, duration=total_duration, description="data"))
     event_info = extract_event_info(tsv_path)
-    epochs = extract_epochs(edf_path, event_info, downsample)
+    epochs = extract_epochs(edf_path, event_info, downsample, inference=True) # inference mode: use all data
     segments = []
 
     # Convert epochs to array for model

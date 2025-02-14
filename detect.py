@@ -19,14 +19,12 @@ def detect_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_durat
     # Load the saved model
     model = joblib.load(model_path)
 
-    # Load the EDF file
-    raw_data = read_raw_edf(edf_path, preload=True)
     event_info = extract_event_info(tsv_path)
 
     # Create epochs (no event info provided, so treat the entire recording as one segment)
     #total_duration = raw_data._last_time
     
-    epochs = extract_epochs(edf_path, event_info, downsample)
+    epochs = extract_epochs(edf_path, event_info, downsample, inference=True)
     segments = []
 
     # Convert epochs to array for model
