@@ -97,8 +97,7 @@ def get_channel_from_event_info(event_info):
         chs[i] = chs[i] + "-Avg"
     return chs
 
-def sample_non_seizure_intervals(event_infos, total_duration=0, n
-=5):
+def sample_non_seizure_intervals(event_infos, total_duration=0, n=5):
     """
     total_duration: the total duration of the recording
     """
@@ -121,8 +120,7 @@ def sample_non_seizure_intervals(event_infos, total_duration=0, n
         no_event_periods.append((seizure_intervals[-1][0]+seizure_intervals[-1][1], total_duration))
 
     # Randomly sample from non-seizure periods
-    # 1. has the proportinal (n
-    # =10) length as seizure
+    # 1. has the proportinal (n =10) length as seizure
     # 2. (future) have same epoch length as seizure(eg. 10s)
 
     sum_seizure_duration = event_infos["duration"].sum()
@@ -201,8 +199,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
 
         updated_event_infos = pd.DataFrame(updated_event_infos)
 
-        no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n
-        =1)
+        no_event_info = sample_non_seizure_intervals(updated_event_infos, total_duration=raw_data._last_time, n=1)
 
         for i, info in updated_event_infos.iterrows():
             # add duration length check to make sure at least one epoch is available
@@ -234,6 +231,9 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
             e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
             epochs.append(e)
 
+        # # print the non-seizure length and seizure length
+        # print("Non-seizure length: ", raw_data._last_time - event_info["duration"].sum())
+        # print("Seizure length: ", event_info["duration"].sum())
 
         for i, info in no_event_info.iterrows():
             raw_copy = raw_data.copy().crop(info["onset"], info["onset"] + info["duration"], verbose=False)
@@ -244,32 +244,40 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
             label = [0] * len(e.events)
             e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
             epochs.append(e)
-    else:
+    else: # inference = True
+        # TODO: raw_data._last_time check
+        if raw_data._last_time < epoch_duration:
+            return epochs
         e = make_fixed_length_epochs(raw_data, duration=epoch_duration,
                                                 overlap=epoch_overlap, preload=True)
         label = []
         time_start = []
         time_end = []
         for t in e.events:
-            t_start = t[0] / raw_copy.info["sfreq"]
-            t_end = t[0] / raw_copy.info["sfreq"] + epoch_duration
-            # if the epoch has overlap with seizure, label it as seizure
-            if t_end > event_info["onset"][i] and t_start < event_info["onset"][i] + event_info["duration"][i] : 
-                label.append(1)
-            else:
-                label.append(0)
+            t_start = t[0] / raw_data.info["sfreq"]
+            t_end = t[0] / raw_data.info["sfreq"] + epoch_duration
+            
+            is_seizure = 0
+            if event_info is not None:
+                for i, info in event_info.iterrows():
+                    # if the epoch has overlap with seizure, label it as seizure
+                    if t_end > info["onset"] and t_start < info["onset"] + info["duration"]: 
+                        is_seizure = 1
+                        break
+            label.append(is_seizure)
             time_start.append(t_start)
             time_end.append(t_end)
         e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
         epochs.append(e)
 
-    return epochs
+    t = (raw_data._last_time - event_info["duration"].sum(), event_info["duration"].sum())
+    return epochs, t
 
 def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_overlap=0, event_offset=0):
     event_info = extract_event_info(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv"),epoch_duration=10)
     if event_info is None:
         return None
-    epochs = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 
+    epochs, t = extract_epochs(get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf"), 
                             event_info, downsample, event_offset, epoch_duration, epoch_overlap)
     segments = []
     for ep in epochs:
@@ -288,25 +296,29 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_o
         
         segments.append({"epoch": epoch, "label": epoch_labels, "subject": epoch_subject})
         # TODO: Add properties that allows trace back to the original recording
-    return segments
+    return segments, t
 
 def read_siena_dataset(bids_root, max_workers=4):
     recording_ids = read_ids_from_bids(bids_root)
-    event_infos, segments = [], []
+    event_infos, segments, ts = [], [], []
 
     if max_workers == 1:
         for ids in recording_ids:
-            segment = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=0, event_offset=0)
+            segment, t = process_recording(ids, bids_root, epoch_duration=10, epoch_overlap=0, event_offset=0)
             if segment is not None:
                 segments.extend(segment)
+                ts.append(t)
     else:
         # multirpocessing in cpu
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_recording, ids, bids_root) for ids in recording_ids]
             for future in as_completed(futures):
                 if future.result() is not None:
-                    segments.extend(future.result())
-
+                    segments.extend(future.result()[0])
+                    ts.append(future.result()[1])
+    # save ts into .csv file
+    ts = pd.DataFrame(ts, columns=["non_seizure_length", "seizure_length"])
+    ts.to_csv("ts.csv", index=False)
     return event_infos, segments
 
 

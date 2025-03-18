@@ -67,8 +67,7 @@ from dataloader import extract_epochs, extract_event_info, get_ids_from_filename
 import torch
 import math
 
-def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_duration=10, epoch_overlap=0, plot=False):
-    start_model_time = time.time()
+def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0, epoch_duration=10, epoch_overlap=0, plot=False, ss_path=None):
 
     model = joblib.load(model_path)
     raw_data = read_raw_edf(edf_path, preload=True)
@@ -114,72 +113,85 @@ def evaluate_recording(edf_path, tsv_path, model_path, downsample=2.0, epoch_dur
 
     # Convert epochs to array for model
     for ep in epochs:
-        epoch = ep.get_data() # shape (n_epochs, n_channels, n_times)
-        epoch_labels = ep.metadata["label"].to_numpy()
-        time_start = ep.metadata["time_start"].to_numpy()
-        time_end = ep.metadata["time_end"].to_numpy()
-        n_epochs, n_channels, n_times = epoch.shape
-        #epoch = epoch.reshape(n_epochs * n_channels, n_times)
-        #epoch_labels = np.tile(ep.metadata["label"], (n_channels))
+        try:
+            epoch = ep.get_data() # shape (n_epochs, n_channels, n_times)
+            epoch_labels = ep.metadata["label"].to_numpy()
+            time_start = ep.metadata["time_start"].to_numpy()
+            time_end = ep.metadata["time_end"].to_numpy()
+            n_epochs, n_channels, n_times = epoch.shape
+            #epoch = epoch.reshape(n_epochs * n_channels, n_times)
+            #epoch_labels = np.tile(ep.metadata["label"], (n_channels))
 
-        segments.append({"epoch": epoch, "label": epoch_labels, "time_start": time_start, "time_end": time_end}) 
+            segments.append({"epoch": epoch, "label": epoch_labels, "time_start": time_start, "time_end": time_end})
+        except Exception as e:
+            print(f"Error: {e}")
+            continue
 
-    X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
-    y_test = np.concatenate([s["label"] for s in segments]).astype(int)
-    time_start_test = np.concatenate([s["time_start"] for s in segments])
-    time_end_test = np.concatenate([s["time_end"] for s in segments])
-    #X_test = X_test[:, np.newaxis, :]
-    del segments
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    try:
+        X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
+        y_test = np.concatenate([s["label"] for s in segments]).astype(int)
+        time_start_test = np.concatenate([s["time_start"] for s in segments])
+        time_end_test = np.concatenate([s["time_end"] for s in segments])
+        #X_test = X_test[:, np.newaxis, :]
+        del segments
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    y_pred = model.predict(X_test)
-    end_model_time = time.time()
-    print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
-    hyp_events = []
+        # y_pred = model.predict(X_test)
+        predictions = model.predict_proba(X_test)
+        yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.8
+        y_pred = model.label_encoder.inverse_transform(yp)
+        
+        hyp_events = []
+        
+        for pred, time_start, time_end in zip(y_pred, time_start_test, time_end_test):
+            if pred == 1:
+                hyp_events.append((time_start, time_end))
+
+        hyp = Annotation(hyp_events, fs, n_samples)
+        fig, ax = plt.subplots(2,1)
+        # Compute sample-based scoring
+        sample_scores = SampleScoring(ref, hyp)
+        figSamples = visualization.plotSampleScoring(ref, hyp, ax=ax[0])
+        print("[Sample-based] Sensitivity:", sample_scores.sensitivity)
+        print("[Sample-based] Precision:", sample_scores.precision)
+        print("[Sample-based] F1-score:", sample_scores.f1)
+        
+            
+        # Compute event-based scoring
+        param = scoring.EventScoring.Parameters(
+        toleranceStart=30,
+        toleranceEnd=60,
+        minOverlap=0,
+        maxEventDuration=5*60,
+        minDurationBetweenEvents=90)
+        event_scores = scoring.EventScoring(ref, hyp, param)
+        
+        figEvents = visualization.plotEventScoring(ref, hyp, param, ax=ax[1])
+        print("[Event-based] Sensitivity:", event_scores.sensitivity)
+        print("[Event-based] Precision:", event_scores.precision)
+        print("[Event-based] F1-score:", event_scores.f1)
+
+        from analysis import Analyzer
+
+        analyzer = Analyzer(print_conf_mat=True)
+        analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
+        accuracy = np.mean(y_pred == y_test)
+        print(f"Model accuracy: {accuracy:.2f}")
+        
+        # plt.show()
+        # save the plots to D:\seizure\results
+        if plot:
+            ax[0].figure.savefig(ss_path)
+            
+            
+        # close the figures
+        plt.close(figSamples)
+        plt.close(figEvents)
     
-    for pred, time_start, time_end in zip(y_pred, time_start_test, time_end_test):
-        if pred == 1:
-            hyp_events.append((time_start, time_end))
-
-    hyp = Annotation(hyp_events, fs, n_samples)
-    
-
-    # Compute sample-based scoring
-    sample_scores = SampleScoring(ref, hyp)
-    figSamples = visualization.plotSampleScoring(ref, hyp)
-    print("[Sample-based] Sensitivity:", sample_scores.sensitivity)
-    print("[Sample-based] Precision:", sample_scores.precision)
-    print("[Sample-based] F1-score:", sample_scores.f1)
-    
-    subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
-    if plot:
-        figSamples.savefig(f"D:/seizure/results/d_mini_multi_tusz_sub/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_sample_scoring.png")
-    # Compute event-based scoring
-    param = scoring.EventScoring.Parameters(
-    toleranceStart=30,
-    toleranceEnd=60,
-    minOverlap=0,
-    maxEventDuration=5*60,
-    minDurationBetweenEvents=90)
-    event_scores = scoring.EventScoring(ref, hyp, param)
-    figEvents = visualization.plotEventScoring(ref, hyp, param)
-    print("[Event-based] Sensitivity:", event_scores.sensitivity)
-    print("[Event-based] Precision:", event_scores.precision)
-    print("[Event-based] F1-score:", event_scores.f1)
-
-    from analysis import Analyzer
-
-    analyzer = Analyzer(print_conf_mat=True)
-    analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
-    accuracy = np.mean(y_pred == y_test)
-    print(f"Model accuracy: {accuracy:.2f}")
-    
-    # plt.show()
-    # save the plots to D:\seizure\results
-    if plot:
-        figEvents.savefig(f"D:/seizure/results/d_mini_multi_tusz_sub/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_event_scoring.png")
-
-    return sample_scores, event_scores
+        return sample_scores, event_scores
+    except Exception as e:
+        print(f"Error: {e}")
+        return None, None
     
 def append_notnan_and_count_nan(value, lst, counter):
     if math.isnan(value):
@@ -189,54 +201,59 @@ def append_notnan_and_count_nan(value, lst, counter):
     return counter
 
 if __name__ == "__main__":
-    # edf_path = "E:\BIDS_Siena\sub-10\ses-01\eeg\sub-10_ses-01_task-szMonitoring_run-05_eeg.edf"
-    # tsv_path = "E:\BIDS_Siena\sub-10\ses-01\eeg\sub-10_ses-01_task-szMonitoring_run-05_events.tsv"
-    # model_path = "D:\seizure\models\detach_minirocket_multivariate_tusz.pkl"
-    # evaluate_recording(edf_path, tsv_path, model_path)
-    #iterate over all recordings in BIDS_Siena
+    
     import os
     bids_root_test = 'E:\BIDS_Siena'
-    model_path = "D:\seizure\models\d_mini_multivariate_tusz_sub.pkl"
-    sample_sensitivity = []
-    sample_precision = []
-    sample_f1 = []
-    event_sensitivity = []
-    event_precision = []
-    event_f1 = []
-    sample_precision_nan = 0
-    sample_f1_nan = 0
-    event_precision_nan = 0
-    event_f1_nan = 0
-    recording_counter = 0
+    model_name = 'en_d_mini_multi_tusz_sub_0'
+    model_path = 'D:/seizure/models/' + model_name + '.pkl'
+
+    sample_sensitivity, sample_precision, sample_f1, event_sensitivity, event_precision, event_f1 = [], [], [], [], [], []
+    sample_precision_nan, sample_f1_nan, event_precision_nan, event_f1_nan = 0, 0, 0, 0
+    subject_id_list, session_id_list, task_id_list, run_id_list = [], [], [], []
     for root, dirs, files in os.walk(bids_root_test):
         for file in files:
             if file.endswith(".edf"):
-                recording_counter += 1
+                
                 edf_path = os.path.join(root, file)
                 tsv_path = os.path.join(root, file.replace("_eeg.edf", "_events.tsv"))
-                print(f"Evaluating {edf_path}")
-                sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path,plot=True)
+                
+                subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
+                ss_path = f"D:/seizure/results/Siena_{model_name}/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_scoring.png"
+                
+                img_dir = os.path.dirname(ss_path)
+                os.makedirs(img_dir, exist_ok=True)
+                sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold=0.5, plot=True, ss_path=ss_path)
+                
+                if sample_scores is None or event_scores is None:
+                    continue
+                
+                subject_id_list.append(subject_id)
+                session_id_list.append(session_id)
+                task_id_list.append(task_id)
+                run_id_list.append(run_id)
                 sample_sensitivity.append(sample_scores.sensitivity)
                 event_sensitivity.append(event_scores.sensitivity)
-                sample_precision_nan = append_notnan_and_count_nan(sample_scores.precision, sample_precision, sample_precision_nan)
-                sample_f1_nan = append_notnan_and_count_nan(sample_scores.f1, sample_f1, sample_f1_nan)
-                event_precision_nan = append_notnan_and_count_nan(event_scores.precision, event_precision, event_precision_nan)
-                event_f1_nan = append_notnan_and_count_nan(event_scores.f1, event_f1, event_f1_nan)
-
+                sample_precision.append(sample_scores.precision)
+                event_precision.append(event_scores.precision)
+                sample_f1.append(sample_scores.f1)
+                event_f1.append(event_scores.f1)
                 
-    
+    result_path = f"D:/seizure/results/Siena_{model_name}/results.csv"
+    result_dir = os.path.dirname(result_path)
+    os.makedirs(result_dir, exist_ok=True)
+    results = pd.DataFrame({
+        "subject_id": subject_id_list,
+        "session_id": session_id_list,
+        "task_id": task_id_list,
+        "run_id": run_id_list,
+        'sample_sensitivity': sample_sensitivity,
+        'sample_precision': sample_precision,
+        'sample_f1': sample_f1,
+        'event_sensitivity': event_sensitivity,
+        'event_precision': event_precision,
+        'event_f1': event_f1,
+    })
+    results.to_csv(result_path, index=False)
     #calculate average scores
-    print(f"Total recordings: {recording_counter}")
-    print("Average sample-based scores:")
-    print("Sensitivity:", np.mean(sample_sensitivity))
-    print("Precision:", np.mean(sample_precision))
-    print("NaN in precision:", sample_precision_nan)
-    print("F1-score:", np.mean(sample_f1))
-    print("NaN in F1-score:", sample_f1_nan)
-    print("Average event-based scores:")
-    print("Sensitivity:", np.mean(event_sensitivity))
-    print("Precision:", np.mean(event_precision))
-    print("NaN in precision:", event_precision_nan)
-    print("F1-score:", np.mean(event_f1))
-    print("NaN in F1-score:", event_f1_nan)
+    
 
