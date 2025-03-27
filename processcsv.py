@@ -52,5 +52,5 @@ def process_ts(csv_path):
 if __name__ == "__main__":
     # Example usage:
     # Replace with your actual CSV path
-    csv_file_path = "D:/seizure/ts.csv"
-    process_ts(csv_file_path)
+    csv_file_path = "D:/seizure/results/en_d_mini_multi_tusz_221_0.5_2/results.csv"
+    process_score(csv_file_path)

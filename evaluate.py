@@ -63,7 +63,7 @@ import matplotlib.colors as mc
 from matplotlib.axes import Axes
 import colorsys
 import time
-from dataloader import extract_epochs, extract_event_info, get_ids_from_filename
+from dataloader import extract_epochs, extract_event_info, get_ids_from_filename, get_data_from_epochs
 import torch
 import math
 
@@ -97,6 +97,8 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0
     df_tsv = pd.read_csv(tsv_path, sep='\t')
     ref_events = []
     for _, row in df_tsv.iterrows():
+        if row['eventType'] == 'bckg':
+            continue
         start_time = int(row['onset'])
         end_time = int(row['onset'] + row['duration'])
         ref_events.append((start_time, end_time))
@@ -105,27 +107,21 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0
 
     ref = Annotation(ref_events, fs, n_samples)
 
-    # Build hypothesis Annotation (hyp) from predicted label=1 epochs
-    # raw_data.set_annotations(Annotations(onset=0, duration=total_duration, description="data"))
-    event_info = extract_event_info(tsv_path)
-    epochs = extract_epochs(edf_path, event_info, downsample, inference=True) # inference mode: use all data
-    segments = []
+    # event_info = extract_event_info(tsv_path)
+    # epochs = extract_epochs(edf_path, event_info, downsample, inference=True) # inference mode: use all data
+    seizure_info = extract_event_info(tsv_path, epoch_duration, filter=["sz", "seiz"])
+    bckg_info = extract_event_info(tsv_path, epoch_duration, filter=["bckg"])
+    
+    if seizure_info is not None:
+        seizure_epochs = extract_epochs(
+            edf_path, seizure_info, downsample, 0, epoch_duration, epoch_overlap, info_type="seizure", inference=True)
+        segments = get_data_from_epochs(seizure_epochs)
+    
+    elif bckg_info is not None:
+        bckg_epochs = extract_epochs(
+            edf_path, bckg_info, downsample, 0, epoch_duration, epoch_overlap, info_type="bckg", inference=True)
+        segments = get_data_from_epochs(bckg_epochs)
 
-    # Convert epochs to array for model
-    for ep in epochs:
-        try:
-            epoch = ep.get_data() # shape (n_epochs, n_channels, n_times)
-            epoch_labels = ep.metadata["label"].to_numpy()
-            time_start = ep.metadata["time_start"].to_numpy()
-            time_end = ep.metadata["time_end"].to_numpy()
-            n_epochs, n_channels, n_times = epoch.shape
-            #epoch = epoch.reshape(n_epochs * n_channels, n_times)
-            #epoch_labels = np.tile(ep.metadata["label"], (n_channels))
-
-            segments.append({"epoch": epoch, "label": epoch_labels, "time_start": time_start, "time_end": time_end})
-        except Exception as e:
-            print(f"Error: {e}")
-            continue
 
     try:
         X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
@@ -148,13 +144,13 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0
                 hyp_events.append((time_start, time_end))
 
         hyp = Annotation(hyp_events, fs, n_samples)
-        fig, ax = plt.subplots(2,1)
+        fig, ax = plt.subplots(2,1, figsize=(8, 4.8))
         # Compute sample-based scoring
         sample_scores = SampleScoring(ref, hyp)
         figSamples = visualization.plotSampleScoring(ref, hyp, ax=ax[0])
-        print("[Sample-based] Sensitivity:", sample_scores.sensitivity)
-        print("[Sample-based] Precision:", sample_scores.precision)
-        print("[Sample-based] F1-score:", sample_scores.f1)
+        # print("[Sample-based] Sensitivity:", sample_scores.sensitivity)
+        # print("[Sample-based] Precision:", sample_scores.precision)
+        # print("[Sample-based] F1-score:", sample_scores.f1)
         
             
         # Compute event-based scoring
@@ -167,21 +163,21 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0
         event_scores = scoring.EventScoring(ref, hyp, param)
         
         figEvents = visualization.plotEventScoring(ref, hyp, param, ax=ax[1])
-        print("[Event-based] Sensitivity:", event_scores.sensitivity)
-        print("[Event-based] Precision:", event_scores.precision)
-        print("[Event-based] F1-score:", event_scores.f1)
+        # print("[Event-based] Sensitivity:", event_scores.sensitivity)
+        # print("[Event-based] Precision:", event_scores.precision)
+        # print("[Event-based] F1-score:", event_scores.f1)
 
-        from analysis import Analyzer
+        # from analysis import Analyzer
 
-        analyzer = Analyzer(print_conf_mat=True)
-        analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
-        accuracy = np.mean(y_pred == y_test)
-        print(f"Model accuracy: {accuracy:.2f}")
+        # analyzer = Analyzer(print_conf_mat=True)
+        # analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
+        # accuracy = np.mean(y_pred == y_test)
+        # print(f"Model accuracy: {accuracy:.2f}")
         
-        # plt.show()
+        
         # save the plots to D:\seizure\results
         if plot:
-            ax[0].figure.savefig(ss_path)
+            ax[0].figure.savefig(ss_path, bbox_inches='tight')
             
             
         # close the figures

@@ -6,7 +6,7 @@ import os
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-def extract_event_info(file_path, epoch_duration=10, filter=["sz", "seiz"]):
+def extract_event_info(file_path, epoch_duration, filter=["sz", "seiz"]):
     """
     Extract event onset, duration, and channel from a BIDS-formatted TSV file.
     
@@ -146,6 +146,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
     # extract filename from filepath
     filename = os.path.basename(file_path)
     subject_id, session_id, task_id, run_id = get_ids_from_filename(filename)
+    ids = get_ids_from_filename(filename)
     raw_data = read_raw_edf(file_path, preload=True, verbose=False)
     # map the channel name from .tsv and .edf
     mapping = {
@@ -167,7 +168,6 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
     # Extend the event duration by the event offset,
     seizure_epochs, non_seizure_epochs, epochs = [], [], []
     if not inference:
-        
         
         if info_type == "seizure":
             updated_seizure_info = extend_event_info(event_info, event_offset)
@@ -195,7 +195,13 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
                     time_start.append(t_start)
                     time_end.append(t_end)
                 
-                e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
+                e.metadata=pd.DataFrame({"label": label, 
+                                       "time_start": time_start, 
+                                       "time_end": time_end, 
+                                       "subject_id":subject_id, 
+                                       "session_id":session_id,
+                                       "task_id":task_id,
+                                       "run_id":run_id,})
                 seizure_epochs.append(e)
             updated_non_seizure_info = get_non_seizure_info(event_info, total_duration=raw_data._last_time)
             t = (raw_data._last_time - event_info["duration"].sum(), event_info["duration"].sum()) # total time of (non_seizure, seizure)
@@ -219,7 +225,13 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
             time_start = [t[0] / raw_copy.info["sfreq"] for t in e.events]
             time_end = [t[0] / raw_copy.info["sfreq"] + epoch_duration for t in e.events]
             label = [0] * len(e.events)
-            e.metadata = pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
+            e.metadata = pd.DataFrame({"label": label, 
+                                       "time_start": time_start, 
+                                       "time_end": time_end, 
+                                       "subject_id":subject_id, 
+                                       "session_id":session_id,
+                                       "task_id":task_id,
+                                       "run_id":run_id,})
             non_seizure_epochs.append(e)
         
         return seizure_epochs, non_seizure_epochs, t
@@ -239,19 +251,26 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
             
             is_seizure = 0
             if event_info is not None:
-                for i, info in event_info.iterrows():
-                    # if the epoch has overlap with seizure, label it as seizure
-                    if t_end > info["onset"] and t_start < info["onset"] + info["duration"]: 
-                        is_seizure = 1
-                        break
+                if info_type == "seizure":
+                    for i, info in event_info.iterrows():
+                        # if the epoch has overlap with seizure, label it as seizure
+                        if t_end > info["onset"] and t_start < info["onset"] + info["duration"]: 
+                            is_seizure = 1
+                            break
             label.append(is_seizure)
             time_start.append(t_start)
             time_end.append(t_end)
-        e.metadata=pd.DataFrame({"label": label, "time_start": time_start, "time_end": time_end, "subject_id":subject_id})
+        e.metadata=pd.DataFrame({"label": label, 
+                                       "time_start": time_start, 
+                                       "time_end": time_end, 
+                                       "subject_id":subject_id, 
+                                       "session_id":session_id,
+                                       "task_id":task_id,
+                                       "run_id":run_id,})
         epochs.append(e)
 
-        t = (raw_data._last_time - event_info["duration"].sum(), event_info["duration"].sum()) if event_info is not None else (raw_data._last_time, 0)
-        return epochs, t
+        # t = (raw_data._last_time - event_info["duration"].sum(), event_info["duration"].sum()) if event_info is not None else (raw_data._last_time, 0)
+        return epochs
 
 def get_data_from_epochs(epochs):
     segments = []
@@ -262,12 +281,17 @@ def get_data_from_epochs(epochs):
         epoch = ep.get_data()
         epoch_label = ep.metadata["label"].to_numpy()
         epoch_subject = ep.metadata["subject_id"].to_numpy()
+        time_start = ep.metadata["time_start"].to_numpy()
+        time_end = ep.metadata["time_end"].to_numpy()
+        session_id = ep.metadata["session_id"].to_numpy()
+        task_id = ep.metadata["task_id"].to_numpy()
+        run_id = ep.metadata["run_id"].to_numpy()
         
         n_epochs, n_channels, n_times = epoch.shape
         
         # epoch = epoch.reshape(n_epochs * n_channels, n_times)
         # epoch_labels = np.tile(ep.metadata["label"], (n_channels))
-        segments.append({"epoch": epoch, "label": epoch_label, "subject": epoch_subject})
+        segments.append({"epoch": epoch, "label": epoch_label, "subject": epoch_subject, "time_start": time_start, "time_end": time_end, "session_id": session_id, "task_id": task_id, "run_id": run_id})
         
     return segments
 
