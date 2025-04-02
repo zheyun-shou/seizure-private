@@ -315,10 +315,11 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=10, epoch_o
     
     return seizure_epoch, non_seizure_epoch, bckg_epoch, t
 
-def read_siena_dataset(bids_root, max_workers=1):
+def read_siena_dataset(bids_root, data_size=1, max_workers=1):
     recording_ids = read_ids_from_bids(bids_root)
     # keep the recordings that has an odd number of subject id. TODO: remove this line
-    recording_ids = [ids for ids in recording_ids if int(ids["subject_id"]) % 2 == 1]
+    if data_size == 0.5:
+        recording_ids = [ids for ids in recording_ids if int(ids["subject_id"]) % 2 == 1]
     # save the recording_ids to csv
     pd.DataFrame(recording_ids).to_csv("train_ids.csv", index=False)
     

@@ -23,11 +23,12 @@ import random
 from evaluate import evaluate_recording, append_notnan_and_count_nan
 
 
-def subject_wise_split(segments, train_ratio=0.8):
+def subject_wise_split(segments, train_ratio=0.8, return_ids=False):
     # use np.unique to get the unique subjects
     subjects = np.concatenate([s['subject'] for s in segments]) #array
     unique_subject = np.unique(subjects)
-    train_subject_idx, test_subject_idx = train_test_split(unique_subject, train_size=train_ratio, random_state=42)
+    
+    train_subject_idx, test_subject_idx = train_test_split(unique_subject, train_size=train_ratio, random_state=42) 
     train_segments = []
     test_segments = []
     for s in segments:
@@ -35,20 +36,32 @@ def subject_wise_split(segments, train_ratio=0.8):
             train_segments.append(s)
         else:
             test_segments.append(s)
-    return train_segments, test_segments
+    if return_ids:
+        train_ids = [{"subject_id": s["subject"][0],
+                      "session_id": s["session_id"][0],
+                      "task_id": s["task_id"][0],
+                      "run_id": s["run_id"][0]} for s in train_segments]
+        test_ids = [{"subject_id": s["subject"][0],
+                      "session_id": s["session_id"][0],
+                      "task_id": s["task_id"][0],
+                      "run_id": s["run_id"][0]} for s in test_segments]
+        return train_segments, test_segments, train_ids, test_ids
+    else:
+        return train_segments, test_segments
+
 
 if __name__ == "__main__":
     dname = os.path.dirname(os.path.abspath(__file__))
     # bids_root = dname + '\BIDS_Siena' 
     # bids_root = dname + '\BIDS_TUSZ'
-    bids_root = 'F:\BIDS_TUSZ' # Replace with your actual path
+    bids_root = 'F:\BIDS_Siena' # Replace with your actual path
     #bids_root = 'E:\BIDS_CHB-MIT'
 
     # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
 
     # plot_eeg_segment(segment, times, desired_channel, event_info)
 
-    segments = read_siena_dataset(bids_root, max_workers=2) # set max_workers to 1 for debugging
+    segments = read_siena_dataset(bids_root, data_size=1, max_workers=2) # set max_workers to 1 for debugging
 
     # start_feature_time = time.time()
     # features = get_feature_matrix(segments)
@@ -70,15 +83,20 @@ if __name__ == "__main__":
     # In case of overflow
     threshold = 0.5
     train_size = 0.8
-    # split the data into training and testing sets in subject-wise manner
-
-
+    
+    ## for TUSZ evaluation
     train_segments, test_segments = subject_wise_split(segments, train_ratio=train_size)
     del segments
     X_train = np.concatenate([s['epoch'] for s in train_segments]).astype(np.float32)
     y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
     X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
     y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
+    
+    # for Siena dataset evaluation only
+    # test_segments = segments
+    # X_test = np.concatenate([s['epoch'] for s in segments]).astype(np.float32)
+    # y_test = np.concatenate([s['label'] for s in segments]).astype(int)
+    # del segments
     
     #X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=42, stratify=y)
     # del X, y
@@ -107,22 +125,22 @@ if __name__ == "__main__":
     model_path = 'D:/seizure/models/' + model_name + '.pkl'
     model = joblib.load(model_path)
     
-    start_model_time = time.time()
+    # start_model_time = time.time()
     
-    predictions = model.predict(X_test)
-    predictions = model.predict_proba(X_test)
-    #print(predictions)
-    yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.8
+    # #predictions = model.predict(X_test)
+    # predictions = model.predict_proba(X_test)
+    # #print(predictions)
+    # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.8
     
-    y_pred = model.label_encoder.inverse_transform(yp)
+    # y_pred = model.label_encoder.inverse_transform(yp)
     
-    end_model_time = time.time()
-    print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+    # end_model_time = time.time()
+    # print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
 
-    analyzer = Analyzer(print_conf_mat=True)
-    analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
-    accuracy = np.mean(y_pred == y_test)
-    print(f"Model accuracy: {accuracy:.2f}")
+    # analyzer = Analyzer(print_conf_mat=True)
+    # analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
+    # accuracy = np.mean(y_pred == y_test)
+    # print(f"Model accuracy: {accuracy:.2f}")
     
     
     ################## Evaluate the model on the test segments, don't forget to change load model #################
@@ -139,6 +157,9 @@ if __name__ == "__main__":
     for test_s in test_segments:
         test_subject_list.append(test_s['subject'][0])
     test_subject_list = np.unique(test_subject_list)
+    
+    
+    del test_segments, train_segments
         # read all the edf and tsv files under the test subject directory
     for test_subject in test_subject_list:
         subject_root = os.path.join(bids_root, f'sub-{test_subject}')
@@ -160,11 +181,11 @@ if __name__ == "__main__":
                 for i, row in test_events_df.iterrows():
                     if row["eventType"] == "bckg":
                         bckg_counter += 1
-                    elif row["eventType"] == "sz":
+                    elif row["eventType"] == "sz" or row["eventType"] == "seiz":
                         seiz_counter += 1
                     
             
-                ss_path = f"D:/seizure/results/{model_name}_{threshold}_2/TUSZ_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_sample_scoring.png"
+                ss_path = f"D:/seizure/results/{model_name}_Siena/Siena_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}_sample_scoring.png"
                 
                 img_dir = os.path.dirname(ss_path)
                 os.makedirs(img_dir, exist_ok=True)
@@ -182,7 +203,7 @@ if __name__ == "__main__":
                 event_f1.append(event_scores.f1)
 
     # save the sensitivity, precision, and f1-score of the samples and events as csv
-    result_path = f"D:/seizure/results/{model_name}_{threshold}_2/results.csv"
+    result_path = f"D:/seizure/results/{model_name}_Siena/results.csv"
     result_dir = os.path.dirname(result_path)
     os.makedirs(result_dir, exist_ok=True)
     results = pd.DataFrame({

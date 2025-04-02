@@ -20,7 +20,7 @@ from analysis import Analyzer
 import random
 from evaluate import evaluate_recording, append_notnan_and_count_nan
 from pipeline import subject_wise_split
-
+from dataloader import extract_event_info, extract_epochs, get_data_from_epochs
 
 if __name__ == "__main__":
     dname = os.path.dirname(os.path.abspath(__file__))
@@ -33,14 +33,15 @@ if __name__ == "__main__":
     # In case of overflow
     threshold = 0.5
     train_size = 0.8
+    downsample = 2
+    epoch_duration = 10
+    epoch_overlap = 0
     
     # split the data into training and testing sets in subject-wise manner
-    train_segments, test_segments = subject_wise_split(segments, train_ratio=train_size)
+    train_segments, test_segments, train_ids, test_ids = subject_wise_split(segments, train_ratio=train_size, return_ids=True)
     del segments
-    X_train = np.concatenate([s['epoch'] for s in train_segments]).astype(np.float32)
-    y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
-    X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
-    y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
+    # X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
+    # y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -52,18 +53,48 @@ if __name__ == "__main__":
     
     # start_model_time = time.time()
     
-    predictions = model.predict(X_test)
-    predictions = model.predict_proba(X_test)
-    # save to csv
-    result_path = f"D:/seizure/results/{model_name}_{threshold}_2/predictions.csv"
-    pd.DataFrame(predictions).to_csv(result_path, index=False)
+    for ids in test_ids:
+        print(ids)
+        edf_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf")
+        tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv")
+        
+        raw_data = read_raw_edf(edf_path, preload=True)
+        total_duration = raw_data._last_time
+        fs = raw_data.info["sfreq"] / downsample
+        
+        seizure_info = extract_event_info(tsv_path, epoch_duration, filter=["sz", "seiz"])
+        bckg_info = extract_event_info(tsv_path, epoch_duration, filter=["bckg"])
+        
+        if seizure_info is not None:
+            seizure_epochs = extract_epochs(
+                edf_path, seizure_info, downsample, 0, epoch_duration, epoch_overlap, info_type="seizure", inference=True)
+            segments = get_data_from_epochs(seizure_epochs)
+        else:
+            bckg_epochs = extract_epochs(
+                edf_path, bckg_info, downsample, 0, epoch_duration, epoch_overlap, info_type="non-seizure", inference=True)
+            segments = get_data_from_epochs(bckg_epochs)
+        
+        X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
+        y_test = np.concatenate([s["label"] for s in segments]).astype(int)
+        time_start_test = np.concatenate([s["time_start"] for s in segments])
+        time_end_test = np.concatenate([s["time_end"] for s in segments])
+        
+        del segments
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        predictions = model.predict_proba(X_test)
+        
+        subject_id, session_id, task_id, run_id = ids['subject_id'], ids['session_id'], ids['task_id'], ids['run_id']
+        pred_path = f"D:/seizure/results/recording_predictions/sub-{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_pred.csv"
+    
+        # save predictions to csv, including time_start and time_end, and label
+        pred_df = []
+        for i, p in enumerate(predictions):
+            pred_df.append({'time_start': time_start_test[i], 'time_end': time_end_test[i], 'label': y_test[i], 'prediction': p[1]})
    
-    # save label, time_start, time_end and ids of test_segments to csv
-    test_seg_df = []
-    for i, s in enumerate(test_segments):
-        test_seg_df.append({'label': s['label'], 'time_start': s['time_start'], 'time_end': s['time_end'], 'subject_id': s['subject'], 'session_id': s['session_id'], 'task_id': s['task_id'], 'run_id': s['run_id']})
-    test_seg_df_path = f"D:/seizure/results/{model_name}_{threshold}_2/test_segments.csv"
-    pd.DataFrame(test_seg_df).to_csv(test_seg_df_path, index=False)
+        pd.DataFrame(pred_df).to_csv(pred_path, index=False)
+    
 
         
         
