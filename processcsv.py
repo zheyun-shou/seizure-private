@@ -116,8 +116,9 @@ def process_predictions(file_path):
     plt.ylabel("Probability")
     title = file_path.split("\\")[-1].split(".")[0]
     plt.title(title)
+    plt.ylim(0, 1)
     plt.legend()
-    plt.savefig(f"D:/seizure/results/recording_predictions/{title}_prob.png")
+    plt.savefig(f"{csv_folder_path}/{title}_prob.png")
     plt.close(fig)
     
 def process_score_subject_wise(file_path):
@@ -165,20 +166,21 @@ def process_score_subject_wise(file_path):
         }
     # save the average scores to csv
     avg_score_per_subject_df = pd.DataFrame(avg_score_per_subject_df)
-    avg_score_per_subject_df.to_csv("D:/seizure/results/en_d_mini_multi_tusz_221_0.5_2/avg_score_per_subject.csv", index=False)
+    avg_score_per_subject_df.to_csv("D:/seizure/results/en_d_mini_multi_tusz_0406_TUSZ/avg_score_per_subject.csv", index=False)
     
 
 if __name__ == "__main__":
     
-    csv_file_path = "D:/seizure/results/en_d_mini_multi_tusz_221_Siena/results.csv"
-    process_score(csv_file_path)
+    # csv_file_path = "D:/seizure/results/en_d_mini_multi_tusz_221_Siena_new/results.csv"
+    # process_score(csv_file_path)
+    #process_score_subject_wise(csv_file_path)
     # read all filenames under D:\seizure\results\recording_predictions
-    # csv_folder_path = "D:/seizure/results/recording_predictions"
-    # for root, dirs, files in os.walk(csv_folder_path):
-    #     for file in files:
-    #         if file.endswith(".csv"):
-    #             process_predictions(os.path.join(root, file))
-    # process_predictions(test_seg_path, pred_path)
+    csv_folder_path = "D:/seizure/results/probs_TUSZ_en_d_mini_multi_tusz_0406"
+    for root, dirs, files in os.walk(csv_folder_path):
+        for file in files:
+            if file.endswith(".csv"):
+                process_predictions(os.path.join(root, file))
+    
     
 #bckg：
 # TP==0, FN==0

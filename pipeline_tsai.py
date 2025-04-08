@@ -4,7 +4,7 @@ import os
 import time
 from sklearn.model_selection import train_test_split
 import torch
-from dataloader import read_siena_dataset
+from dataloader import read_dataset
 from sktime.classification.kernel_based import RocketClassifier
 
 from tsai.imports import default_device
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     bids_root = 'E:\BIDS_Siena' # Replace with your actual path
     #bids_root = 'E:\BIDS_CHB-MIT'
 
-    event_infos, segments = read_siena_dataset(bids_root, max_workers=2)
+    event_infos, segments = read_dataset(bids_root, max_workers=2)
 
     #only in desired channels?
     X = np.concatenate([s['epoch'] for s in segments]).astype(np.float32)
