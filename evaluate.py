@@ -96,9 +96,10 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # y_pred = model.predict(X_test)
-        predictions = model.predict_proba(X_test)
-        yp = (predictions[:, 1] > threshold).astype(int) # threshold 
-        y_pred = model.label_encoder.inverse_transform(yp)
+        # predictions = model.predict_proba(X_test)
+        # yp = (predictions[:, 1] > threshold).astype(int) # threshold 
+        # y_pred = model.label_encoder.inverse_transform(yp)
+        y_pred = model.predict(X_test)
         
         hyp_events = []
         
@@ -145,12 +146,12 @@ def append_notnan_and_count_nan(value, lst, counter):
 
 if __name__ == "__main__":
     
-    dataset = "Siena" # "Siena" or "TUSZ"
+    dataset = "TUSZ" # "Siena" or "TUSZ"
     bids_root = f'F:\BIDS_{dataset}' # Replace with your actual path
     threshold = 0.5
     train_size = 0.8
-    model_name = 'en_d_mini_multi_tusz_0406'
-    
+    model_name = '0427_de_mini_datasize0.5' 
+
     
     subject_ids = []
     for root, dirs, files in os.walk(bids_root):
@@ -163,8 +164,11 @@ if __name__ == "__main__":
     if dataset == "TUSZ":
         data_size = 0.5
         # only keep odd subject ids, data_size=0.5, only in TUSZ
-        if data_size == 0.5:
-            subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+        # if data_size == 0.5:
+        #     subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+        random.seed(42)
+        random.shuffle(subject_ids)
+        subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
             
         train_subject_idx, test_subject_idx = train_test_split(subject_ids, train_size=train_size, random_state=42)
         train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
@@ -190,7 +194,7 @@ if __name__ == "__main__":
         
         # start_model_time = time.time()
         
-        # model prediction on test set
+        # # model prediction on test set
         # predictions = model.predict_proba(X_test)
         # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
         
@@ -201,7 +205,7 @@ if __name__ == "__main__":
         # accuracy = np.mean(y_pred == y_test)
         # print(f"Epoch-wise model accuracy on TUSZ, test set: {accuracy:.2f}")
         
-        #prediction on train set, for overfitting check
+        # # prediction on train set, for overfitting check
         # predictions_train = model.predict_proba(X_train)
         # yp_train = (predictions_train[:, 1] > threshold).astype(int) # threshold = 0.5
         # y_pred_train = model.label_encoder.inverse_transform(yp_train)
@@ -234,26 +238,29 @@ if __name__ == "__main__":
         start_model_time = time.time()
         
         # model prediction on test set
-        predictions = model.predict_proba(X_test)
-        yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
+        # predictions = model.predict_proba(X_test)
+        # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
         
-        y_pred = model.label_encoder.inverse_transform(yp)
+        # y_pred = model.label_encoder.inverse_transform(yp)
+        y_pred = model.predict(X_test)
         
         analyzer = Analyzer(print_conf_mat=True)
         analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
         accuracy = np.mean(y_pred == y_test)
         print(f"Epoch-wise model accuracy on Siena: {accuracy:.2f}")
+        
+        del X_test, y_test
             
     ################## Evaluate the model #################
     
     start_model_time = time.time()
     
-    sample_sensitivity, sample_precision, sample_f1, event_sensitivity, event_precision, event_f1 = [], [], [], [], [], []
+    sample_sensitivity, sample_precision, sample_f1, sample_fpRate, event_sensitivity, event_precision, event_f1, event_fpRate = [], [], [], [], [], [], [], []
     sample_precision_nan, sample_f1_nan, event_precision_nan, event_f1_nan = 0, 0, 0, 0
-    recording_counter = 0
+    
     subject_id_list = []
     bckg_counter,seiz_counter = 0, 0
-    result_path = f"D:/seizure/results/{model_name}_{dataset}/results.csv"
+    result_path = f"D:/seizure/results/{model_name}_{dataset}/results_w_fp.csv"
     result_dir = os.path.dirname(result_path)
     os.makedirs(result_dir, exist_ok=True)
     
@@ -274,11 +281,15 @@ if __name__ == "__main__":
         tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format = 'tsv')
         test_events_df = pd.read_csv(tsv_path, sep='\t')
                 
-        for i, row in test_events_df.iterrows():
-            if row["eventType"] == "bckg":
-                bckg_counter += 1
-            elif "sz" in row["eventType"]:
-                seiz_counter += 1
+        # for i, row in test_events_df.iterrows():
+        #     if row["eventType"] == "bckg":
+        #         bckg_counter += 1
+        #     elif "sz" in row["eventType"]:
+        #         seiz_counter += 1
+        if "bckg" in test_events_df["eventType"].values:
+            bckg_counter += 1
+        if test_events_df["eventType"].str.contains("sz").any():
+            seiz_counter += 1
                 
         subject_id = ids['subject_id']
         session_id = ids['session_id']
@@ -290,7 +301,7 @@ if __name__ == "__main__":
         img_dir = os.path.dirname(ss_path)
         os.makedirs(img_dir, exist_ok=True)
         
-        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, plot=True, ss_path=ss_path)
+        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, plot=False, ss_path=ss_path)
         
         if sample_scores is None or event_scores is None:
             continue
@@ -301,6 +312,8 @@ if __name__ == "__main__":
         event_precision.append(event_scores.precision)
         sample_f1.append(sample_scores.f1)
         event_f1.append(event_scores.f1)
+        sample_fpRate.append(sample_scores.fpRate)
+        event_fpRate.append(event_scores.fpRate)
 
         # save the sensitivity, precision, and f1-score of the samples and events as csv
         if idx_cnt % 10 == 0:
@@ -309,9 +322,11 @@ if __name__ == "__main__":
                 'sample_sensitivity': sample_sensitivity,
                 'sample_precision': sample_precision,
                 'sample_f1': sample_f1,
+                'sample_fpRate': sample_fpRate,
                 'event_sensitivity': event_sensitivity,
                 'event_precision': event_precision,
                 'event_f1': event_f1,
+                'event_fpRate': event_fpRate,
             })
             results.to_csv(result_path, index=False)
         idx_cnt += 1
@@ -321,17 +336,19 @@ if __name__ == "__main__":
         'sample_sensitivity': sample_sensitivity,
         'sample_precision': sample_precision,
         'sample_f1': sample_f1,
+        'sample_fpRate': sample_fpRate,
         'event_sensitivity': event_sensitivity,
         'event_precision': event_precision,
         'event_f1': event_f1,
+        'event_fpRate': event_fpRate,
     })
     results.to_csv(result_path, index=False)
     
         
     end_model_time = time.time()
     print(f"Model evaluation took: {end_model_time - start_model_time:.2f} seconds")
-    print(f"Number of bckg: {bckg_counter}")
-    print(f"Number of seiz: {seiz_counter}")
+    print(f"Number of bckg recordings in test set: {bckg_counter}")
+    print(f"Number of sz recordings in test set: {seiz_counter}")
             
         
         

@@ -57,7 +57,7 @@ if __name__ == "__main__":
     bids_root = 'F:\BIDS_TUSZ' # Replace with your actual path
     threshold = 0.5
     train_size = 0.8
-    data_size = 0.5
+    data_size = 0.3
 
     # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
 
@@ -69,20 +69,21 @@ if __name__ == "__main__":
                 subject_ids.append(subject_id)
     subject_ids = np.unique(subject_ids)
     # only keep odd subject ids, data_size=0.5, only in TUSZ
-    if data_size == 0.5:
-        subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+    # if data_size == 0.5:
+    #     subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+    
+    # shuffle subject ids and take the first 0.6 of them
+    random.seed(42)
+    random.shuffle(subject_ids)
+    subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
         
     train_subject_idx, test_subject_idx = train_test_split(subject_ids, train_size=train_size, random_state=42)
-    train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
-    test_segments, test_epoch_numbers_df = read_dataset(bids_root, test_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+    train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=1) # set max_workers to 1 for debugging
+    
     
     print("train epochs:")
     print(train_epoch_numbers_df)
-    print("test epochs:")
-    print(test_epoch_numbers_df)
 
-
-    
 
     # start_feature_time = time.time()
     # features = get_feature_matrix(segments)
@@ -92,11 +93,10 @@ if __name__ == "__main__":
 
     X_train = np.concatenate([s['epoch'] for s in train_segments]).astype(np.float32)
     y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
-    X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
-    y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
-    
-    print(X_train.shape, y_train.shape)
-    print(X_test.shape, y_test.shape)
+
+    del train_segments
+    gc.collect()
+    torch.cuda.empty_cache()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("cuda available: ", torch.cuda.is_available())
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
     
     # save model
-    model_name = 'en_d_mini_multi_tusz_0406'
+    model_name = 'en_mini_tusz_0422_datasize0.3'
     joblib.dump(model, 'D:/seizure/models/' + model_name + '.pkl')
 
     # load model
@@ -127,16 +127,27 @@ if __name__ == "__main__":
     
     start_model_time = time.time()
     
+    test_segments, test_epoch_numbers_df = read_dataset(bids_root, test_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+    X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
+    y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
+    del test_segments
+    gc.collect()
+    print("test epochs:")
+    print(test_epoch_numbers_df)
     # model prediction on test set
-    predictions = model.predict_proba(X_test)
-    yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
+    # predictions = model.predict_proba(X_test)
+    # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
     
-    y_pred = model.label_encoder.inverse_transform(yp)
+    # y_pred = model.label_encoder.inverse_transform(yp)
+    y_pred = model.predict(X_test)
     
     analyzer = Analyzer(print_conf_mat=True)
     analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
     accuracy = np.mean(y_pred == y_test)
     print(f"Epoch-wise model accuracy on test set: {accuracy:.2f}")
+    
+    del X_test, y_test
+    gc.collect()
     
     #model prediction on train set, for overfitting check
     predictions_train = model.predict_proba(X_train)

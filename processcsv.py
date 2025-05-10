@@ -25,17 +25,21 @@ def process_score(csv_path):
     avg_sample_sensitivity = df_no_nan["sample_sensitivity"].mean()
     avg_sample_precision   = df_no_nan["sample_precision"].mean()
     avg_sample_f1          = df_no_nan["sample_f1"].mean()
+    avg_sample_fpRate      = df_no_nan["sample_fpRate"].mean()
     avg_event_sensitivity  = df_no_nan["event_sensitivity"].mean()
     avg_event_precision    = df_no_nan["event_precision"].mean()
     avg_event_f1           = df_no_nan["event_f1"].mean()
+    avg_event_fpRate       = df_no_nan["event_fpRate"].mean()
 
     print("Averages from non-NaN rows:")
     print(f"sample_sensitivity: {avg_sample_sensitivity:.3f}")
     print(f"sample_precision:   {avg_sample_precision:.3f}")
     print(f"sample_f1:          {avg_sample_f1:.3f}")
+    print(f"sample_fpRate:      {avg_sample_fpRate:.3f}")
     print(f"event_sensitivity:  {avg_event_sensitivity:.3f}")
     print(f"event_precision:    {avg_event_precision:.3f}")
     print(f"event_f1:           {avg_event_f1:.3f}")
+    print(f"event_fpRate:       {avg_event_fpRate:.3f}")
 
 def process_ts(csv_path):
     # calculate the sum of the first column and the sum of the second column
@@ -49,55 +53,6 @@ def process_ts(csv_path):
     print(f"Sum of non_seizure_length: {sum_first_col}")
     print(f"Sum of seizure_length: {sum_second_col}")
     
-
-# def process_predictions(test_seg_path, pred_path):
-    
-#     if not os.path.exists(test_seg_path):
-#         print(f"File not found: {test_seg_path}")
-#         return
-#     if not os.path.exists(pred_path):
-#         print(f"File not found: {pred_path}")
-#         return
-    
-#     test_seg_df = pd.read_csv(test_seg_path)
-#     predictions = pd.read_csv(pred_path)
-    
-    
-#     new_test_seg_df = pd.DataFrame()
-#     # concatenate the test_seg_df 
-#     for keyword in ["label", "time_start", "time_end", "subject_id", "session_id", "task_id", "run_id"]:
-#         # convert type of elements in dataframe, displayed as string, to list
-#         test_seg_df[keyword] = test_seg_df[keyword].apply(
-#             lambda s: list(map(str, s.strip("[]").replace("\n", " ").split()))
-#         )
-#         # print(test_seg_df[keyword].to_list())
-#         new_test_seg_df[keyword] = np.concatenate(test_seg_df[keyword].to_list())
-    
-#     # find unique combination of "subject_id", "session_id", "task_id", "run_id"
-#     unique_combinations = new_test_seg_df[["subject_id", "session_id", "task_id", "run_id"]].drop_duplicates()
-#     # find rows in new_test_seg_df with same "subject_id", "session_id", "task_id", "run_id" with unique_combinations
-#     for i, row in unique_combinations.iterrows():
-#         subject_id = row["subject_id"]
-#         session_id = row["session_id"]
-#         task_id = row["task_id"]
-#         run_id = row["run_id"]
-#         # find rows in new_test_seg_df with same "subject_id", "session_id", "task_id", "run_id"
-#         row_index = new_test_seg_df[(new_test_seg_df["subject_id"] == subject_id) & (new_test_seg_df["session_id"] == session_id) & (new_test_seg_df["task_id"] == task_id) & (new_test_seg_df["run_id"] == run_id)].index
-#         time_starts = new_test_seg_df["time_start"].iloc[row_index].to_numpy().astype(float)
-#         label = new_test_seg_df["label"].iloc[row_index].to_numpy().astype(float)
-#         pred_rows = predictions.iloc[row_index, 1].to_numpy().astype(float)
-#         # plot pred_rows with time_starts
-#         fig = plt.figure()
-#         plt.plot(time_starts, pred_rows, label="prediction")
-#         plt.plot(time_starts, label, label="label")
-#         plt.xlabel("Time start")
-#         plt.ylabel("Prediction")
-#         # set title with "subject_id", "session_id", "task_id", "run_id"
-#         title = f"subject_{subject_id}_session_{session_id}_task_{task_id}_run_id_{run_id}"
-#         plt.title(title)
-#         plt.legend()
-#         plt.savefig(f"D:/seizure/results/predictions/{title}_pred.png")
-#         plt.close(fig)
     
 def process_predictions(file_path):
     # plot label and prediction with x-axis as time_start
@@ -129,6 +84,7 @@ def process_score_subject_wise(file_path):
     
     avg_sample_sensitivity_list, avg_sample_precision_list, avg_sample_f1_list = [], [], []
     avg_event_sensitivity_list, avg_event_precision_list, avg_event_f1_list = [], [], []
+    avg_sample_fpRate_list, avg_event_fpRate_list = [], []
     # calculate the scores for each subject
     df = pd.read_csv(file_path)
     for i, row in df.iterrows():
@@ -148,49 +104,139 @@ def process_score_subject_wise(file_path):
             avg_event_sensitivity  = subject_df["event_sensitivity"].mean()
             avg_event_precision    = subject_df["event_precision"].mean()
             avg_event_f1           = subject_df["event_f1"].mean()
+            avg_sample_fpRate      = subject_df["sample_fpRate"].mean()
+            avg_event_fpRate       = subject_df["event_fpRate"].mean()
             avg_sample_sensitivity_list.append(avg_sample_sensitivity)
             avg_sample_precision_list.append(avg_sample_precision)
             avg_sample_f1_list.append(avg_sample_f1)
             avg_event_sensitivity_list.append(avg_event_sensitivity)
             avg_event_precision_list.append(avg_event_precision)
             avg_event_f1_list.append(avg_event_f1)
+            avg_sample_fpRate_list.append(avg_sample_fpRate)
+            avg_event_fpRate_list.append(avg_event_fpRate)
             
     avg_score_per_subject_df = {
             "subject_id": subject_id_list,
             "avg_sample_sensitivity": avg_sample_sensitivity_list,
             "avg_sample_precision": avg_sample_precision_list,
             "avg_sample_f1": avg_sample_f1_list,
+            "avg_sample_fpRate": avg_sample_fpRate_list,
             "avg_event_sensitivity": avg_event_sensitivity_list,
             "avg_event_precision": avg_event_precision_list,
-            "avg_event_f1": avg_event_f1_list
+            "avg_event_f1": avg_event_f1_list,
+            "avg_event_fpRate": avg_event_fpRate_list
         }
     # save the average scores to csv
     avg_score_per_subject_df = pd.DataFrame(avg_score_per_subject_df)
-    avg_score_per_subject_df.to_csv("D:/seizure/results/en_d_mini_multi_tusz_0406_TUSZ/avg_score_per_subject.csv", index=False)
+    avg_score_per_subject_df.to_csv("D:/seizure/results/0406_en_mini_model10_datasize0.5_TUSZ/avg_score_per_subject_w_fp.csv", index=False)
     
+def find_duplicates(csv_path):
+    """
+    Find duplicate rows in the CSV file
+    """
+    if not os.path.exists(csv_path):
+        print(f"File not found: {csv_path}")
+        return
+
+    df = pd.read_csv(csv_path)
+    duplicates = df[df.duplicated(keep=False)]  # keep=False to mark all duplicates
+    if not duplicates.empty:
+        print("Duplicate rows found:")
+        print(duplicates)
+    else:
+        print("No duplicate rows found.")
+
+
+def plot_f1_scores_histogram(f1_scores, title='Histogram of Subject FPR',
+                             xlabel='Event-wise FPR', ylabel='Number of Subjects',
+                             color='dimgray', edgecolor='white', bins=10, figsize=(8,5)):
+    """
+    Generates a histogram of F1 scores.
+
+    Args:
+        f1_scores (list or array-like): A list of F1 scores.
+        title (str): The title of the plot.
+        xlabel (str): The label for the x-axis.
+        ylabel (str): The label for the y-axis.
+        color (str): The color of the histogram bars.
+        edgecolor (str): The color of the bar edges.
+        bins (int or sequence): The number of bins or bin edges for the histogram.
+        figsize (tuple): The size of the figure (width, height).
+    """
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.figure(figsize=figsize)
+    
+    # Filter out NaN values before plotting, if any still exist
+    f1_scores_cleaned = [score for score in f1_scores if not np.isnan(score)]
+    if not f1_scores_cleaned:
+        print("Warning: No valid F1 scores to plot after cleaning.")
+        return
+
+    plt.hist(f1_scores_cleaned, bins=bins, color=color, edgecolor=edgecolor)
+    plt.title(title, fontsize=15, fontweight='bold')
+    plt.xlabel(xlabel, fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.grid(axis='y', alpha=0.75)
+    custom_x_ticks = np.arange(0, 301, 30)
+    plt.xticks(custom_x_ticks)
+    plt.xlim(0, 300)  # Set x-axis limits to [0, 1] for F1 scores
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     
-    # csv_file_path = "D:/seizure/results/en_d_mini_multi_tusz_221_Siena_new/results.csv"
-    # process_score(csv_file_path)
+    csv_file_path = "D:/seizure/results/0510_de_mini_datasize0.5_Siena/results_w_fp.csv"
+
+    process_score(csv_file_path)
     #process_score_subject_wise(csv_file_path)
+    
     # read all filenames under D:\seizure\results\recording_predictions
-    csv_folder_path = "D:/seizure/results/probs_TUSZ_en_d_mini_multi_tusz_0406"
-    for root, dirs, files in os.walk(csv_folder_path):
-        for file in files:
-            if file.endswith(".csv"):
-                process_predictions(os.path.join(root, file))
+    # csv_folder_path = "D:/seizure/results/probs_TUSZ_en_d_mini_multi_tusz_0406"
+    # for root, dirs, files in os.walk(csv_folder_path):
+    #     for file in files:
+    #         if file.endswith(".csv"):
+    #             process_predictions(os.path.join(root, file))
     
-    
-#bckg：
-# TP==0, FN==0
+    ## plot subject-wise f1 scores
+    # csv_file_path = 'D:/seizure/results/en_d_mini_multi_tusz_0406_TUSZ/avg_score_per_subject.csv' # <--- !!! REPLACE THIS WITH THE ACTUAL PATH TO YOUR CSV FILE !!!
 
-# if FP==0:
-#     sen,pre,f1=nan, nan, nan
-# else if FP!=0:
-#     sen=nan, pre=0, f1=nan
+    # # --- Create a dummy CSV for demonstration if it doesn't exist ---
+    # try:
+    #     # Try to read the CSV, if it fails, create a dummy one.
+    #     data = pd.read_csv(csv_file_path)
+    # except FileNotFoundError:
+    #     print(f"Warning: '{csv_file_path}' not found.")
+
+    # # --- Step 3: Read the CSV file using pandas ---
+    # try:
+    #     data = pd.read_csv(csv_file_path)
+        
+    #     # --- Step 4: Extract F1 scores and handle NaN values ---
+
+    #     if 'avg_event_fpRate' in data.columns:
+    #         fpr_from_csv = data['avg_event_fpRate'].dropna().tolist() # Drop NaN and convert to list
+    #         subject_ids_from_csv = data.loc[data['avg_event_fpRate'].notna(), 'subject_id'].tolist() # Get corresponding subject_ids
+
+    #         if not fpr_from_csv:
+    #             print("No valid F1 scores found in the CSV after dropping NaN values.")
+    #         else:
+    #             print(f"\nRead {len(fpr_from_csv)} valid F1 scores from '{csv_file_path}'.")
+    #             print("F1 Scores:", fpr_from_csv)
+
+    #             # --- Step 5: Plot the histogram ---
+    #             custom_bin_edges = np.arange(0, 301, 30) 
+    #             plot_f1_scores_histogram(fpr_from_csv,
+    #                                      title='Distribution of Subject FPR',
+    #                                      bins=custom_bin_edges) # You can adjust the number of bins
 
 
-# #seizure：
-# if TP==0 and FN!=0 and FP==0:
-#     sen=0, pre=nan, f1=nan
+    #     else:
+    #         print(f"Error: Column 'f1_score' not found in '{csv_file_path}'. Please check your CSV file.")
+
+    # except FileNotFoundError:
+    #     print(f"Error: The file '{csv_file_path}' was not found. Please ensure the path is correct.")
+    #     print("If you intended to use the dummy CSV, it should have been created. Try running again.")
+    # except pd.errors.EmptyDataError:
+    #     print(f"Error: The file '{csv_file_path}' is empty.")
+    # except Exception as e:
+    #     print(f"An error occurred: {e}")
