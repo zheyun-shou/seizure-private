@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+
 def process_score(csv_path):
     """
     Reads the CSV file, counts how many lines contain NaN values, and
@@ -25,21 +27,21 @@ def process_score(csv_path):
     avg_sample_sensitivity = df_no_nan["sample_sensitivity"].mean()
     avg_sample_precision   = df_no_nan["sample_precision"].mean()
     avg_sample_f1          = df_no_nan["sample_f1"].mean()
-    avg_sample_fpRate      = df_no_nan["sample_fpRate"].mean()
+    # avg_sample_fpRate      = df_no_nan["sample_fpRate"].mean()
     avg_event_sensitivity  = df_no_nan["event_sensitivity"].mean()
     avg_event_precision    = df_no_nan["event_precision"].mean()
     avg_event_f1           = df_no_nan["event_f1"].mean()
-    avg_event_fpRate       = df_no_nan["event_fpRate"].mean()
+    # avg_event_fpRate       = df_no_nan["event_fpRate"].mean()
 
     print("Averages from non-NaN rows:")
     print(f"sample_sensitivity: {avg_sample_sensitivity:.3f}")
     print(f"sample_precision:   {avg_sample_precision:.3f}")
     print(f"sample_f1:          {avg_sample_f1:.3f}")
-    print(f"sample_fpRate:      {avg_sample_fpRate:.3f}")
+    # print(f"sample_fpRate:      {avg_sample_fpRate:.3f}")
     print(f"event_sensitivity:  {avg_event_sensitivity:.3f}")
     print(f"event_precision:    {avg_event_precision:.3f}")
     print(f"event_f1:           {avg_event_f1:.3f}")
-    print(f"event_fpRate:       {avg_event_fpRate:.3f}")
+    # print(f"event_fpRate:       {avg_event_fpRate:.3f}")
 
 def process_ts(csv_path):
     # calculate the sum of the first column and the sum of the second column
@@ -128,7 +130,9 @@ def process_score_subject_wise(file_path):
         }
     # save the average scores to csv
     avg_score_per_subject_df = pd.DataFrame(avg_score_per_subject_df)
-    avg_score_per_subject_df.to_csv("D:/seizure/results/0406_en_mini_model10_datasize0.5_TUSZ/avg_score_per_subject_w_fp.csv", index=False)
+    print(os.path.dirname(file_path))
+    avg_csv_path = os.path.join(os.path.dirname(file_path), "avg_score_per_subject.csv")
+    avg_score_per_subject_df.to_csv(avg_csv_path, index=False)
     
 def find_duplicates(csv_path):
     """
@@ -145,7 +149,6 @@ def find_duplicates(csv_path):
         print(duplicates)
     else:
         print("No duplicate rows found.")
-
 
 def plot_f1_scores_histogram(f1_scores, title='Histogram of Subject FPR',
                              xlabel='Event-wise FPR', ylabel='Number of Subjects',
@@ -177,18 +180,18 @@ def plot_f1_scores_histogram(f1_scores, title='Histogram of Subject FPR',
     plt.xlabel(xlabel, fontsize=12)
     plt.ylabel(ylabel, fontsize=12)
     plt.grid(axis='y', alpha=0.75)
-    custom_x_ticks = np.arange(0, 301, 30)
+    custom_x_ticks = np.arange(0, 1.01, 0.1)
     plt.xticks(custom_x_ticks)
-    plt.xlim(0, 300)  # Set x-axis limits to [0, 1] for F1 scores
+    plt.xlim(0, 1)  # Set x-axis limits to [0, 1] for F1 scores
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
     
-    csv_file_path = "D:/seizure/results/0510_de_mini_datasize0.5_Siena/results_w_fp.csv"
+    csv_file_path = "D:/seizure/results/0512_en_mini_datasize0.5_epoch20_TUSZ/results_w_fp.csv"
 
     process_score(csv_file_path)
-    #process_score_subject_wise(csv_file_path)
+    # process_score_subject_wise(csv_file_path)
     
     # read all filenames under D:\seizure\results\recording_predictions
     # csv_folder_path = "D:/seizure/results/probs_TUSZ_en_d_mini_multi_tusz_0406"
@@ -200,7 +203,7 @@ if __name__ == "__main__":
     ## plot subject-wise f1 scores
     # csv_file_path = 'D:/seizure/results/en_d_mini_multi_tusz_0406_TUSZ/avg_score_per_subject.csv' # <--- !!! REPLACE THIS WITH THE ACTUAL PATH TO YOUR CSV FILE !!!
 
-    # # --- Create a dummy CSV for demonstration if it doesn't exist ---
+    # --- Create a dummy CSV for demonstration if it doesn't exist ---
     # try:
     #     # Try to read the CSV, if it fails, create a dummy one.
     #     data = pd.read_csv(csv_file_path)
@@ -213,25 +216,43 @@ if __name__ == "__main__":
         
     #     # --- Step 4: Extract F1 scores and handle NaN values ---
 
-    #     if 'avg_event_fpRate' in data.columns:
-    #         fpr_from_csv = data['avg_event_fpRate'].dropna().tolist() # Drop NaN and convert to list
-    #         subject_ids_from_csv = data.loc[data['avg_event_fpRate'].notna(), 'subject_id'].tolist() # Get corresponding subject_ids
+    #     # if 'avg_event_fpRate' in data.columns:
+    #     #     fpr_from_csv = data['avg_event_fpRate'].dropna().tolist() # Drop NaN and convert to list
+    #     #     subject_ids_from_csv = data.loc[data['avg_event_fpRate'].notna(), 'subject_id'].tolist() # Get corresponding subject_ids
 
-    #         if not fpr_from_csv:
+    #     #     if not fpr_from_csv:
+    #     #         print("No valid F1 scores found in the CSV after dropping NaN values.")
+    #     #     else:
+    #     #         print(f"\nRead {len(fpr_from_csv)} valid F1 scores from '{csv_file_path}'.")
+    #     #         print("F1 Scores:", fpr_from_csv)
+
+    #     #         # --- Step 5: Plot the histogram ---
+    #     #         custom_bin_edges = np.arange(0, 301, 30) 
+    #     #         plot_f1_scores_histogram(fpr_from_csv,
+    #     #                                  title='Distribution of Subject FPR',
+    #     #                                  bins=custom_bin_edges,
+    #     #                                  xlim=300) # You can adjust the number of bins
+
+
+    #     # else:
+    #     #     print(f"Error: Column 'f1_score' not found in '{csv_file_path}'. Please check your CSV file.")
+        
+    #     if 'avg_event_f1' in data.columns:
+    #         f1_from_csv = data['avg_event_f1'].dropna().tolist()
+    #         subject_ids_from_csv = data.loc[data['avg_event_f1'].notna(), 'subject_id'].tolist()
+            
+    #         if not f1_from_csv:
     #             print("No valid F1 scores found in the CSV after dropping NaN values.")
     #         else:
-    #             print(f"\nRead {len(fpr_from_csv)} valid F1 scores from '{csv_file_path}'.")
-    #             print("F1 Scores:", fpr_from_csv)
+    #             print(f"\nRead {len(f1_from_csv)} valid F1 scores from '{csv_file_path}'.")
+    #             print("F1 Scores:", f1_from_csv)
 
     #             # --- Step 5: Plot the histogram ---
-    #             custom_bin_edges = np.arange(0, 301, 30) 
-    #             plot_f1_scores_histogram(fpr_from_csv,
-    #                                      title='Distribution of Subject FPR',
-    #                                      bins=custom_bin_edges) # You can adjust the number of bins
-
-
-    #     else:
-    #         print(f"Error: Column 'f1_score' not found in '{csv_file_path}'. Please check your CSV file.")
+    #             custom_bin_edges = np.arange(0, 1.01, 0.1) 
+    #             plot_f1_scores_histogram(f1_from_csv,
+    #                                      title='Distribution of Subject F1',
+    #                                      xlabel='Event-wise F1',
+    #                                      bins=custom_bin_edges)
 
     # except FileNotFoundError:
     #     print(f"Error: The file '{csv_file_path}' was not found. Please ensure the path is correct.")

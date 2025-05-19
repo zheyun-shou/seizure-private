@@ -21,7 +21,7 @@ import joblib
 from analysis import Analyzer
 import random
 from evaluate import evaluate_recording, append_notnan_and_count_nan
-
+from sktime.classification.feature_based import Catch22Classifier
 
 def subject_wise_split(segments, train_ratio=0.8, return_ids=False):
     # use np.unique to get the unique subjects
@@ -57,12 +57,13 @@ if __name__ == "__main__":
     bids_root = 'F:\BIDS_TUSZ' # Replace with your actual path
     threshold = 0.5
     train_size = 0.8
-    data_size = 0.3
+    data_size = 0.5
 
     # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
 
     subject_ids = []
     for root, dirs, files in os.walk(bids_root):
+        files.sort()
         for file in files:
             if file.endswith('.edf'):
                 subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
 
     del train_segments
-    gc.collect()
+  
     torch.cuda.empty_cache()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -103,6 +104,8 @@ if __name__ == "__main__":
     print("device: ", device)
     
     start_model_time = time.time()
+    # catch22 model
+    # model = Catch22Classifier(random_state=42, n_jobs=-1)
     # Detach rocket model
     #model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
 
@@ -110,18 +113,19 @@ if __name__ == "__main__":
     #model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
 
     # Detach minirocket ensemble model
-    model = DetachEnsemble(num_models=10, num_kernels=10000, model_type='pytorch_minirocket', verbose=False)
+    model = DetachEnsemble(num_models=5, num_kernels=10000, model_type='pytorch_minirocket', verbose=False)
+    
     model.fit(X_train, y_train)
     
     end_model_time = time.time()
     print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
     
     # save model
-    model_name = 'en_mini_tusz_0422_datasize0.3'
+    model_name = '0513_en_mini_datasize0.5_model5'
     joblib.dump(model, 'D:/seizure/models/' + model_name + '.pkl')
 
     # load model
-    # model_name = 'en_d_mini_multi_tusz_221'
+    # model_name = '0511_catch22_datasize0.5_2'
     # model_path = 'D:/seizure/models/' + model_name + '.pkl'
     # model = joblib.load(model_path)
     
@@ -131,7 +135,7 @@ if __name__ == "__main__":
     X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
     y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
     del test_segments
-    gc.collect()
+    
     print("test epochs:")
     print(test_epoch_numbers_df)
     # model prediction on test set
@@ -147,17 +151,18 @@ if __name__ == "__main__":
     print(f"Epoch-wise model accuracy on test set: {accuracy:.2f}")
     
     del X_test, y_test
-    gc.collect()
-    
+
     #model prediction on train set, for overfitting check
-    predictions_train = model.predict_proba(X_train)
-    yp_train = (predictions_train[:, 1] > threshold).astype(int) # threshold = 0.5
-    y_pred_train = model.label_encoder.inverse_transform(yp_train)
+    # predictions_train = model.predict_proba(X_train)
+    # yp_train = (predictions_train[:, 1] > threshold).astype(int) # threshold = 0.5
+    # y_pred_train = model.label_encoder.inverse_transform(yp_train)
     
-    analyzer = Analyzer(print_conf_mat=True)
-    analyzer.analyze_classification(y_pred_train, y_train, ['normal', 'seizure'])
-    accuracy_train = np.mean(y_pred_train == y_train)
-    print(f"Epoch-wise model accuracy on train set: {accuracy_train:.2f}")
+    # y_pred_train = model.predict(X_train)
+    
+    # analyzer = Analyzer(print_conf_mat=True)
+    # analyzer.analyze_classification(y_pred_train, y_train, ['normal', 'seizure'])
+    # accuracy_train = np.mean(y_pred_train == y_train)
+    # print(f"Epoch-wise model accuracy on train set: {accuracy_train:.2f}")
     
     
     end_model_time = time.time()

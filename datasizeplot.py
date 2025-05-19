@@ -43,10 +43,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Your data
-datasize = np.array([0.6, 0.4, 0.3, 0.5, 0.2])
-epoch_wise_test_acc = np.array([0.82, 0.77, 0.74, 0.77, 0.44])
-epoch_wise_f1 = np.array([0.64, 0.602, 0.629, 0.674, 0.249])
-event_wise_f1 = np.array([0.925, 0.868, 0.935, 0.912, 0.8])
+# datasize = np.array([0.6, 0.4, 0.3, 0.5, 0.2])
+# epoch_wise_test_acc = np.array([0.82, 0.77, 0.74, 0.77, 0.44])
+# epoch_wise_f1 = np.array([0.64, 0.602, 0.629, 0.674, 0.249])
+# event_wise_f1 = np.array([0.925, 0.868, 0.935, 0.912, 0.8])
+datasize = np.array([0.3, 0.4, 0.6, 0.7, 0.5, 0.8])
+epoch_wise_test_acc = np.array([0.71, 0.78, 0.73, 0.75, 0.79, 0.82])
+epoch_wise_f1 = np.array([0.642, 0.558, 0.614, 0.529, 0.55, 0.674])
+event_wise_f1 = np.array([0.94, 0.931, 0.897, 0.834, 0.864, 0.888])
 
 # Sort by datasize
 sorted_indices = np.argsort(datasize)
