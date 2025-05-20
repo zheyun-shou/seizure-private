@@ -70,18 +70,21 @@ if __name__ == "__main__":
                 subject_ids.append(subject_id)
     subject_ids = np.unique(subject_ids)
     # only keep odd subject ids, data_size=0.5, only in TUSZ
-    # if data_size == 0.5:
-    #     subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+    if data_size == 0.5:
+        subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
     
     # shuffle subject ids and take the first 0.6 of them
-    random.seed(42)
-    random.shuffle(subject_ids)
-    subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
+    # random.seed(42)
+    # random.shuffle(subject_ids)
+    # subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
         
     train_subject_idx, test_subject_idx = train_test_split(subject_ids, train_size=train_size, random_state=42)
-    train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=1) # set max_workers to 1 for debugging
+    train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
     
-    
+    print("train subjects:")
+    print(train_subject_idx)
+    print("test subjects:")
+    print(test_subject_idx)
     print("train epochs:")
     print(train_epoch_numbers_df)
 
@@ -121,7 +124,7 @@ if __name__ == "__main__":
     print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
     
     # save model
-    model_name = '0513_en_mini_datasize0.5_model5'
+    model_name = '0520_en_mini_datasize0.5odd_model5'
     joblib.dump(model, 'D:/seizure/models/' + model_name + '.pkl')
 
     # load model
