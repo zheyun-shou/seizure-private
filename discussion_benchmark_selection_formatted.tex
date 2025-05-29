@@ -1,0 +1,847 @@
+%%
+%% forked from https://gits-15.sys.kth.se/giampi/kthlatex kthlatex-0.2rc4 on 2020-02-13 expanded upon by Gerald Q. Maguire Jr. This template has been adapted by Anders
+%% Sjögren to the University Engineering Program in Computer Science at KTH ICT. This adaptation was translation of English headings into Swedish with the addition of
+%% Swedish. Many thanks to others who have provided constructive input regarding the template.
+
+% Make it possible to conditionally depend on the TeX engine used
+\RequirePackage{ifxetex}
+\RequirePackage{ifluatex}
+\newif\ifxeorlua
+\ifxetex\xeorluatrue\fi
+\ifluatex\xeorluatrue\fi
+
+\ifxeorlua
+% The following is to ensure that the PDF uses a recent version rather than the typical PDF 1-5. This same version of PDF should be set as an option for hyperef
+
+\RequirePackage{expl3}
+\ExplSyntaxOn
+%pdf_version_gset:n{2.0}
+%\pdf_version_gset:n{1.5}
+
+%% Alternatively, if you have a LaTeX newer than June 2022, you can use the following. However, then you have to remove the pdfversion from hyperef. It also breaks
+%% hyperxmp. So perhaps it is too early to try using it!
+%\DocumentMetadata
+%{
+%% testphase = phase-I, % tagging without paragraph tagging
+% testphase = phase-II % tagging with paragraph tagging and other new stuff.
+%pdfversion = 2.0 % pdfversion must be set here.
+%}
+
+% Optionally, you can set the uncompress flag to make it easier to examine the PDF
+%\pdf_uncompress: % to check the pdf
+\ExplSyntaxOff
+\else
+\RequirePackage{expl3}
+\ExplSyntaxOn
+%\pdf_version_gset:n{2.0}
+\pdf_version_gset:n{1.5}
+\ExplSyntaxOff
+\fi
+
+%% Define a pair of commands to disable and reenable specific packages - see https://tex.stackexchange.com/questions/39415/unload-a-latex-package
+\makeatletter
+\newcommand{\disablepackage}[2]{%
+\disable@package@load{#1}{#2}%
+}
+\newcommand{\reenablepackage}[1]{%
+\reenable@package@load{#1}%
+}
+\makeatother
+%% To avoid the warning: "Package transparent Warning: Loading aborted, because pdfTeX is not running in PDF mode."
+\ifxeorlua
+\disablepackage{transparent}{}
+\fi
+
+%% The template is designed to handle a thesis in English or Swedish set the default language to english or swedish by passing an option to the documentclass - this
+%% handles the inside title page To optimize for digital output (this changes the color palette add the option: digitaloutput To use \ifnomenclature add the option
+%% nomenclature To use bibtex or biblatex - include one of these as an option
+\documentclass[nomenclature, english, bibtex]{kththesis}
+%\documentclass[swedish, biblatex]{kththesis}
+% if pdflatex \usepackage[utf8]{inputenc}
+\usepackage{amsfonts}
+\usepackage{amsbsy}
+\usepackage{multirow}
+
+\definecolor{mycustomgray}{gray}{0.65}
+\newenvironment{incomplete}{%
+\color{mycustomgray}%
+}{%
+}
+%% Conventions for todo notes:
+% Informational
+
+\cleardoublepage
+\chapter{Background}
+\label{ch:background}
+
+\section{Epilepsy}
+
+A seizure represents a fundamental disruption of normal brain function, characterized by a transient surge of abnormal, excessive, or synchronous neuronal activity within
+the brain~\cite{fisher2014iladef, fisher2017operational}. These paroxysmal events can manifest through a wide spectrum of signs and symptoms, the nature of which is
+intrinsically linked to the specific cerebral networks involved in the ictal discharge and its subsequent propagation~\cite{thijs2019epilepsy}. While an isolated seizure
+may be provoked by acute systemic insults or transient neurological stressors, the term epilepsy designates a more profound neurological condition: an enduring
+predisposition to generate unprovoked epileptic seizures, along with the associated neurobiological, cognitive, psychological, and social ramifications~\cite{berg2010revised}.
+Clinically, epilepsy is typically diagnosed after at least one unprovoked seizure, especially when factors suggest a high likelihood of recurrence.
+
+The global impact of seizures and epilepsy is considerable. Affecting an estimated 50 million individuals worldwide, epilepsy stands as one of the most prevalent serious
+neurological disorders~\cite{who2023epilepsy}. Beyond the immediate risk of physical injury during an ictal event, seizures can precipitate or exacerbate cognitive
+difficulties, particularly in domains of memory and attention, and are frequently associated with psychological comorbidities such as anxiety and
+depression~\cite{jobst2010cognitive, fiest2017depression}. The societal impact is also profound, with individuals often confronting stigma, discrimination, and limitations
+in education, employment, and personal autonomy~\cite{deboer2008stigma}. The consequences of recurrent seizures permeate virtually every aspect of an individual's life.
+
+% Clinically, the manifestations of seizures are strikingly diverse. The International League Against Epilepsy (ILAE) provides a foundational framework, classifying
+% seizures based on their onset—focal, generalized, or unknown~\cite{fisher2017operational}. Focal onset seizures originate within networks confined to one cerebral
+% hemisphere and can occur with or without impaired awareness, presenting with a range of motor or non-motor symptoms. In contrast, generalized onset seizures are presumed
+% to involve widespread, bilateral networks from their inception, typically leading to immediate impairment of consciousness. The category of unknown onset is reserved for
+% seizures where the initial point of origin cannot be confidently determined~\cite{fisher2017operational}. This broad spectrum of clinical presentations, from subtle
+% sensory disturbances or brief lapses in awareness to overt, dramatic convulsive episodes, means that seizures can often be difficult to recognize or accurately describe,
+% particularly if unwitnessed.
+
+The diagnostic process for seizures heavily relies on meticulous clinical history-taking, including detailed eyewitness accounts, as the ictal events themselves are often
+brief and unpredictable, making direct observation by clinicians rare~\cite{smith2015diagnosis}. This dependence on subjective reporting, while indispensable, introduces
+potential inaccuracies and challenges in distinguishing seizures from other paroxysmal events~\cite{lafrance2008psychogenic}. Accurate seizure detection is not merely an
+academic exercise; it is critical for guiding appropriate therapeutic interventions, predicting long-term outcomes, and informing genetic counseling~\cite{devinsky2018epilepsy}.
+
+\section{Electroencephalography for Brain Activity Monitoring}
+
+Electroencephalography (EEG) is a cornerstone neurophysiological technique used to record the electrical activity generated by the brain. It provides a non-invasive, direct
+measure of brain function by detecting voltage fluctuations resulting from ionic current flows within the neurons of the cerebral cortex~\cite{niedermeyer2005electroencephalography,
+kandel2013principles}. Specifically, EEG signals primarily reflect the summed postsynaptic potentials (both excitatory and inhibitory) of large populations of synchronously
+active pyramidal neurons oriented radially to the scalp~\cite{kandel2013principles, sanei2007eeg}. Due to its excellent temporal resolution, typically in the millisecond
+range, EEG is uniquely suited for capturing the rapidly changing dynamics of brain activity, making it an invaluable tool in both clinical neurology and neuroscience
+research, particularly for the assessment of conditions characterized by abnormal electrical discharges, such as epilepsy~\cite{noachtar1999semiology}.
+
+The acquisition of EEG data involves placing electrodes on the scalp, typically made of conductive materials like silver/silver-chloride (Ag/AgCl). These electrodes detect
+the minute electrical potentials (on the order of microvolts, µV) generated by the brain, which are then significantly amplified by differential amplifiers to make them
+suitable for digitization and subsequent analysis~\cite{teplan2002fundamentals}. To ensure reproducibility and comparability of EEG recordings across different laboratories
+and individuals, standardized electrode placement systems are employed. The most widely adopted is the International 10-20 system and its extensions~\cite{klem1999ten,
+oostenveld2001guidelines}. This system positions electrodes at locations that are 10\% or 20\% of the total front-to-back or right-to-left distance of the skull, ensuring
+proportional spacing relative to cranial landmarks (nasion, inion, and preauricular points). Each electrode is labeled with a letter indicating the underlying brain lobe
+(e.g., F for frontal, P for parietal, T for temporal, O for occipital) and a number or another letter to denote its specific position~\cite{klem1999ten}.
+
+The resulting EEG waveforms are complex and are traditionally analyzed in terms of their frequency, amplitude, morphology, and topography. Clinically relevant information is
+often contained within specific frequency bands, such as delta (0.5-4 Hz), theta (4-8 Hz), alpha (8-13 Hz), beta (13-30 Hz), and gamma (>30 Hz), each associated with
+different brain states or cognitive processes~\cite{kandel2013principles}. In the context of epilepsy, EEG is crucial for identifying interictal epileptiform discharges
+(IEDs) and for characterizing the electrographic signature of seizures themselves (ictal patterns)~\cite{stlouis2009epilepsy}. These patterns provide critical information
+for diagnosing epilepsy, classifying seizure types, localizing the seizure onset zone, and guiding treatment decisions.
+
+However, the utility of EEG is often challenged by the inherent low signal-to-noise ratio (SNR) and its susceptibility to various artifacts~\cite{teplan2002fundamentals,
+islam2018eeg}. EEG signals are frequently contaminated by physiological artifacts originating from non-cerebral sources, such as eye movements and blinks (electrooculogram,
+EOG), muscle activity (electromyogram, EMG) particularly from scalp and facial muscles, and cardiac activity (electrocardiogram, ECG)\cite{islam2018eeg, jiang2019removal}.
+Non-physiological artifacts also pose significant problems, including 50/60 Hz power line interference, electrode impedance issues (e.g., electrode pop or poor contact),
+and movement artifacts from patient motion or cable sway\cite{jiang2019removal}. These artifacts can mimic or obscure true epileptiform activity, leading to potential
+misinterpretations if not properly addressed. Consequently, rigorous data preprocessing, encompassing techniques such as filtering, artifact detection, and artifact removal
+or suppression, is an indispensable yet often complex step before any meaningful analysis or automated interpretation of EEG data can be performed~\cite{jiang2019removal,
+fatourechi2007emg}. The challenge of reliably distinguishing pathological neural signals from this pervasive noise, especially in long-term recordings or in ambulatory
+settings, underscores the need for robust and sophisticated signal processing and machine learning algorithms, forming a critical motivation for the research presented in
+this thesis.
+
+\section{Time-series classification}
+
+Time Series Classification (TSC) is a specialized area within machine learning concerned with assigning predefined categorical labels to unlabeled time series
+data~\cite{bagnall2017great}. A time series itself is a sequence of data points indexed in time order, commonly encountered in diverse domains such as finance, healthcare,
+environmental science, and industrial processes~\cite{xing2010brief}. The primary objective of TSC is to build a model that can learn discriminative patterns or features
+from a collection of labeled time series, enabling it to accurately predict the class of new, unseen time series instances, and providing a powerful framework for
+automated detection tasks~\cite{bagnall2017great, esling2012time}.
+
+Early TSC methods often relied on distance-based measures, with Dynamic Time Warping (DTW) being a prominent example, which calculates similarity between two temporal
+sequences that may vary in time or speed~\cite{rakthanmanon2013searching}. Other approaches focused on extracting statistical or structural features from the time series
+(e.g., mean, variance, spectral properties, shapelets) and then applying standard static classification algorithms~\cite{esling2012time, ye2009time}. While effective in
+certain contexts, these methods can sometimes struggle with the high dimensionality, inherent noise, and complex temporal dependencies often present in real-world time
+series data.
+
+More recently, deep learning architectures have demonstrated state-of-the-art performance on many TSC benchmarks~\cite{fawaz2019deep}. Prominent among these are variants
+of Convolutional Neural Networks (CNNs) and Residual Networks (ResNet), adapted for time series, and have achieved remarkable success by effectively capturing local and
+global patterns~\cite{wang2017time}. Methods like InceptionTime also utilizes modules with multiple convolutional filter sizes to capture features at different temporal
+scales~\cite{fawaz2019inceptiontime}. Recurrent Neural Networks (RNNs), particularly Long Short-Term Memory (LSTM) units and Gated Recurrent Units (GRUs), are inherently
+suited for modeling temporal dependencies and have also been widely applied, though sometimes at a higher computational cost~\cite{ismail2019deep}. Furthermore,
+Transformer-based models, leveraging self-attention mechanisms, have shown significant promise in capturing long-range dependencies and complex relationships within time
+series data~\cite{zerveas2021transformer}. Other approaches also includes ensemble methods, which combine several heterogeneous classifiers into a large
+meta-ensemble~\cite{bagnall2015cote, lines2018hivecote, middlehurst2021hivecote2}. However, training these models can be computationally intensive, require large datasets,
+which poses limits in a sparse data scenario.
+
+% (Advances in feature: catch22, hctsa, ROCKET and its variants, Detach-ROCKET)
+
+Alongside the advancements in deep learning, a distinct and highly competitive paradigm has gained prominence, focusing on transform-based feature engineering coupled with
+efficient classification. This approach decouples the often complex task of feature extraction from the subsequent classification step, allowing for specialized, powerful
+feature generation techniques to be paired with simpler, faster classifiers. Early and comprehensive exemplars of this philosophy include toolkits like hctsa (Highly
+Comparative Time-Series Analysis)\cite{fulcher2013highly} and catch22\cite{lubba2019catch22}. hctsa facilitates the extraction of thousands of diverse time-series features
+derived from a wide array of scientific literature, enabling extensive data-driven exploration and the potential discovery of novel discriminative patterns~\cite{fulcher2013highly}.
+In contrast, catch22 offers a more concise, curated set of 22 canonical time-series characteristics selected for their broad applicability and high discriminative power in
+general-purpose TSC tasks, aiming for robust performance with minimal redundancy~\cite{lubba2019catch22}. Both these methodologies transform raw time series into a rich
+feature space, thereby empowering relatively simple classifiers to perform effectively.
+
+Another highly influential branch within this ``transform-then-classify" paradigm emerged with ROCKET (RandOm Convolutional KErnel Transform)\cite{Dempster2020rocket}.
+ROCKET demonstrated that convolving time series with a large number of randomly generated, diverse convolutional kernels and extracting simple summary statistics (typically
+the maximum value and proportion of positive values) could yield highly discriminative features. These features then enable robust linear classifiers, such as ridge
+regression, to achieve state-of-the-art accuracy with exceptional speed, bypassing the need for complex backpropagation and extensive hyperparameter tuning associated
+with many deep learning models\cite{Dempster2020rocket, ruiz2021greatmv}. The success of ROCKET spurred further innovations: MiniROCKET significantly reduced computational
+overhead by optimizing kernel parameters and focusing primarily on the proportion of positive values feature~\cite{Dempster2021mini}, while MultiROCKET enhanced performance
+by incorporating a richer set of summary statistics from the convolved outputs and an improved kernel generation strategy~\cite{tan2022multirocket}. Building upon this
+lineage, Detach-ROCKET further reinforces the modular nature of the approach by separating, or "detaching" the redundant random kernels from the classifier training
+stage~\cite{uribarri2024detachrocketsequentialfeatureselection}. This design preserves computational efficiency and enhances the flexibility of feature generation, thereby
+readily supporting ensemble methods such as Detach Ensemble~\cite{solana2024classificationrawmegeegdata}, where diverse feature sets can be strategically combined. The
+collective strength of these methods lies in their computational efficiency, reduced reliance on massive datasets, and potential for greater interpretability, making them
+particularly well-suited for challenging biomedical signal analysis tasks.
+
+\section{Related works}
+
+The automated detection of epileptic seizures from EEG signals has been an active area of research for several decades, driven by the need to alleviate the laborious and
+subjective process of manual EEG review by neurologists, and enable timely clinical intervention~\cite{roy2019review, usmankhujaev2021review}.
+
+Early approaches predominantly relied on extracting salient features from EEG segments in various domains: time, frequency, and time-frequency—followed by classification
+using conventional machine learning algorithms \cite{acharya2013automated_seizure_detection, hussein2020epileptic}. Common features include statistical measures (e.g.,
+variance, kurtosis), spectral power in different EEG bands (delta, theta, alpha, beta, gamma), wavelet coefficients, and entropy measures \cite{gupta2021review,
+kiral2023machine_learning_wavelet_emd}. Classifiers such as Support Vector Machines (SVMs), k-Nearest Neighbors (k-NN), Random Forests (RF), and Artificial Neural Networks
+(ANNs) were then trained on these extracted features to distinguish ictal (seizure) from interictal (non-seizure) or normal EEG patterns \cite{subasi2019practical_guide,
+kiral2023machine_learning_wavelet_emd}. While these methods have shown success, their performance heavily depends on the quality and relevance of the handcrafted features,
+which often require domain expertise and may not generalize well across diverse patient populations or recording conditions \cite{roy2019review, usmankhujaev2021review}.
+
+More recently, deep learning techniques have demonstrated the ability to automatically learn hierarchical feature representations directly from raw or minimally processed
+EEG data \cite{shoeibi2021epileptic_seizures_deep_learning_review, anwar2022deep_learning_eeg_review, eldele2021attention_based_sleep_stage_eeg_transformer}. Convolutional
+Neural Networks (CNNs) have been widely adopted for their proficiency in capturing spatial and temporal patterns from EEG signals, often treating multichannel EEG as an
+image or a set of parallel time series \cite{acharya2018deep_cnn_seizure_detection, zhou2018patient_specific_cnn_fft, golmohammadi2019deep_learning_eeg_review}. Recurrent
+Neural Networks (RNNs), particularly LSTMs and GRUs, are well-suited for modeling the temporal dynamics and long-range dependencies in EEG sequences \cite{hussein2019human_interpretable_lstm_seizure,
+tsiouris2018long_short_term_memory_seizure_detection}. Hybrid models combining CNNs for feature extraction and RNNs for sequence modeling (CNN-LSTM) have also shown
+promising results \cite{aslam2022cnn_lstm_seizure_prediction, indurani2023time_attention_cnn_lstm}. Furthermore, Transformer models, with their self-attention mechanisms,
+are increasingly being explored for EEG analysis, including seizure detection, due to their capability to capture global dependencies in long sequences \cite{eldele2021attention_based_sleep_stage_eeg_transformer,
+zhao2023automated_transformer_seizure_detection, tian2021hybrid_cnn_transformer_seizure_detection, wang2022transformer_seizure_prediction_graph, koshiyama2023unsupervised_transformer_seizure_identification,
+gerster2023tsd_transformers_seizure_detection, liu2024automatic_s_transform_transformer}. These deep learning approaches often achieve good performance but typically require
+substantial amounts of labeled data for training and can be computationally intensive \cite{shoeibi2021epileptic_seizures_deep_learning_review, anwar2022deep_learning_eeg_review}.
+
+Some recent works also explore the application of ROCKET-based methodologies for EEG feature learning in seizure detection, aiming to combine the speed of random convolutional
+kernel transforms with effective classification \cite{zhang2024efficient_eeg_rocket_wavelet, lundy2021rocket_neonatal_eeg}. These approaches seek to provide a balance
+between high accuracy and computational efficiency, which is crucial for practical clinical applications, especially in resource-constrained environments or for real-time
+monitoring systems \cite{lee2022real_time_seizure_detection_comparison, saleh2023tiny_ml_seizure_detection}.
+
+\cleardoublepage
+\chapter{Method}
+\label{ch:methods}
+
+\section{Data Processing}
+\subsection{Data}
+
+In this project, two datasets are employed for model training and evaluation. The first dataset is the TUH EEG Seizure Corpus~\cite{Shah2018TUH} (TUSZ), which comprises
+recordings from a total of 459 subjects. Within this corpus, a subset of the EEG recordings contains annotated seizure events, while the remainder consists of background
+(BCKG) recordings included to balance the dataset and to better assess the system's false alarm performance. Here BCKG recordings are defined as those that do not exhibit
+any of the following patterns: spike and/or sharp waves, periodic lateralized epileptiform discharges, generalized periodic epileptiform discharges, eye movements, or
+artifacts. Each EEG recording consists of 19 channels corresponding to the standard 10–20 system scalp electrode montage (see Figure~\ref{fig:electrodes}), with a sampling
+rate of 256 Hz. See the publication of Obeid et al.~\cite{obeid2018temple} for further details on data collection.
+
+Another dataset we used is the Siena Scalp EEG Database~\cite{Detti2020Siena}. This database contains EEG recordings from 14 patients, collected at the Unit of Neurology
+and Neurophysiology at the University of Siena. The participants include 9 males (ages 25–71) and 5 females (ages 20–58). Each subject was monitored using Video-EEG at
+a sampling rate of 256 Hz. The recordings include 19 EEG channels, based on the standard 10–20 system scalp electrode montage (see Figure~\ref{fig:electrodes}). See the
+publication of Detti et al.~\cite{Detti2020} for further details on data collection.
+
+\begin{figure}[!ht]
+\begin{center}
+\includegraphics[width=0.5\textwidth]{figures/electrodes.png}
+\end{center}
+\caption{Electrode locations for EEG signals. From Shah, V. et al~\cite{Shah2018TUH}}
+\label{fig:electrodes}
+\end{figure}
+
+\subsection{Data preprocessing}
+\label{method: datapreprocess}
+
+To support model training across multiple datasets, we convert each dataset to the Seizure Community Open-Source Research Evaluation (SzCORE) standardized format~\cite{szcore}
+for data and seizure annotations. This format is compatible with the Brain Imaging Data Structure (BIDS).
+
+The model is trained on the large Temple University Seizure Corpus (TUSZ) dataset, which includes 1,134 recordings with seizures and 4,585 background recordings. All
+recordings are downsampled to 128 Hz. Each recording is segmented into non-overlapping 10-second epochs. These epochs are then categorized as seizure, interictal, or
+background (bckg). Seizure epochs are sampled from periods annotated as seizures. Interictal epochs are sampled from intervals between annotated seizure events. Background
+epochs are sampled exclusively from recordings labeled as BCKG. Seizure epochs are assigned the label 1 (seizure), while interictal and background epochs are assigned
+the label 0 (non-seizure).
+
+\section{Model} \todo{Do you have any text to describe your own adaptations of this to make it run? You want to help a student to be able to replicate your work by showing what work you needed to do to make this into a computational pipeline.}
+\subsection{ROCKET and MINIROCKET}
+
+ROCKET (\textbf{R}and\textbf{O}m \textbf{C}onvolutional \textbf{KE}rnel \textbf{T}ransform) achieves state-of-the-art classification accuracy for time series classification
+while requiring only a fraction of the computational resources used by most existing methods~\cite{Dempster2020rocket}. It transforms time series using random convolutional
+kernels and uses the transformed features to train a linear classifier. The method was later reformulated as MINIROCKET (\textbf{MINI}mally \textbf{R}and\textbf{O}m
+\textbf{C}onvolutional \textbf{KE}rnel \textbf{T}ransform), which is up to 75 times faster than ROCKET on large datasets and is almost deterministic, while maintaining
+nearly the same accuracy~\cite{Dempster2021mini}. MINIROCKET is significantly faster than other methods with similar accuracy and provides significantly better accuracy
+than methods with comparable computational efficiency.
+
+\subsection{Detach-ROCKET}
+\label{method:detachrocket}
+Although ROCKET and MINIROCKET are efficient and computationally lightweight, many of the randomly generated features are redundant or non-informative, increasing the
+computational burden and may reduce the model's generalizability. Detach-ROCKET addresses this issue by introducing Sequential Feature Detachment (SFD), a method designed
+to identify and prune the non-essential features from ROCKET-based models~\cite{uribarri2024detachrocketsequentialfeatureselection}. In SFD, the transformed features
+are ranked according to their contribution to the model's decisions. At each iteration, a fixed proportion of the least informative features is discarded. Let $\mathbb{F}$
+denote the complete set of features generated by ROCKET's random convolutional kernels. The subset of currently active features is represented by $\mathbb{S}_t$, which
+is initially set to $\mathbb{F}$.
+
+At each step $t$, a ridge classifier is trained on the active feature set $\mathbb{S}_t$ by solving the following optimization problem:
+
+\begin{equation}
+\begin{aligned} {\hat{\theta \ }_t}^{\textrm{ridge}}=\underset{\theta }{{\text {argmin}}}\left\{ \sum _{i=1}^N\left( y_i-\theta _0-\sum _{k \in \varvec{\mathbb {S}}_t} x_{i k} \theta _k\right) ^2+\lambda \sum _{k \in \varvec{\mathbb {S}}_t} \theta _k^2\right\} \end{aligned}
+\end{equation}
+
+The training process produces a set of optimal coefficients $\hat{\theta}_t^{\text{ridge}}=\{\hat{\theta}_k\}$, where each coefficient is proportional to the contribution
+of a corresponding feature on the classifier's decision. The features are then ranked according to the absolute values of their coefficients. Let $p$ denote the proportion
+of features to be removed. At each step, the lowest $100 \cdot p\%$ of ranked features discarded, and the remaining $100 \cdot (1-p)\%$ are retained to form the updated
+feature set $\mathbb{S}_{t+1}$. Since $p$ controls the trade-off between computational cost and model accuracy, it is set to 0.05 to ensure a conservative yet computationally
+affordable pruning procedure, meaning that $5\%$ of the features are removed at each step.
+
+To determine the optimal number of features to finally retain in our dataset, we solve the following optimization problem:
+
+\begin{equation}
+\begin{aligned} Q_c = \underset{q}{\text{argmax}} \ f_c(q) = \underset{q}{\text{argmax}} \ \left\{ \alpha(q)+c \cdot q \right\} \end{aligned}
+\end{equation}
+
+In this equation, $Q_c$ represents the accuracy curve obtained by evaluating the model at each pruning step, $q$ represents the proportion of pruned features, and $\alpha(q)$
+the accuracy of the pruned model on the validation set. The hyperparameter $c$ is the weighting factor between accuracy and data size, in which a smaller $c$ value favors
+accuracy and larger $c$ value favors data size. We set $c=0.1$, as this achieves the optimal performance according to Fig.4 in ~\cite{uribarri2024detachrocketsequentialfeatureselection}.
+
+\subsection{Detach Ensemble}
+
+Given the high dimensionality of multivariate time series such as the 19-channel EEG data in this project, relying on a single set of randomly generated kernels may
+inadequately capture the complex spatio-temporal patterns and inter-channel relationships critical for seizure detection. To address this limitation and improve model
+generalization and robustness, an ensemble approach based on Detach-ROCKET is employed. The Detach Ensemble involves training $N$ independent Detach-ROCKET models. For
+each model, a subset of the training data is used to determine the optimal pruning size, and the model is then pruned using SFD. Each pruned model is then assigned a
+weight based on its performance on the training set~\cite{solana2024classificationrawmegeegdata}.
+
+For classifying a given input instance, predictions from each individual model are aggregated via a weighted average, using the predetermined model weights, to yield a
+final ensemble probability score. This probability is then thresholded (commonly at 0.5) to produce the definitive classification label (seizure or non-seizure).
+
+In our implementation, we use an ensemble of $N=10$ Detach-MiniROCKET models. This number was chosen as a balance between seeking improved performance through ensemble
+diversity and managing computational resources, as training significantly more models becomes resource-intensive. Each of the 10 model is trained independently using the
+procedure described in Section ~\ref{method:detachrocket}, including the application of SFD with $p=0.05$ and the feature selection criterion $c=0.1$.
+
+\section{Evaluation of Models}
+
+The performance of the trained Detach-ROCKET and Detach Ensemble model are assessed through two complementary evaluation frameworks: epoch-wise and event-wise analysis.
+
+Firstly, an epoch-wise evaluation is conducted based on the 10-second non-overlapping segments described in Section~\ref{method: datapreprocess}. Standard classification
+metrics including accuracy, sensitivity, precision, and the F1-score are computed on the test set. The confusion matrix is also examined to understand the distribution
+of classification errors. This epoch-based assessment provides views of the model's ability to correctly classify individual epochs.
+
+However, recognizing that clinical assessment of epilepsy monitoring often focuses on the detection of seizure episodes (events) rather than isolated time epochs, an
+event-wise evaluation is performed. During the evaluation procedure, event-based sensitivity, precision, and F1-score are calculated base on the open-source \texttt{timescoring}
+library~\cite{timescoring2023}.
+
+\subsection{Evaluation metrics}
+
+To evaluate the performance both epoch-wise and event-wise, we first define and explain the True Positives (TP), True Negatives (TN), False Positives (FP), and False
+Negatives (FN) in this study: True Positive (TP): An instance correctly identified as belonging to the positive class (seizure); True Negative (TN): An instance correctly
+identified as belonging to the negative class (non-seizure);False Positive (FP): An instance incorrectly identified as belonging to the positive class when it belongs
+to the negative class (a non-seizure instance classified as seizure);False Negative (FN): An instance incorrectly identified as belonging to the negative class when it
+belongs to the positive class (a seizure instance classified as non-seizure).
+
+For epoch-wise evaluation, a TP is a correctly classified seizure epoch, an FP is a non-seizure epoch classified as seizure, etc. For event-wise evaluation, the following
+parameters were configured to combine the epochs to seizure events, as suggested by the 2025 Seizure Detection Challenge:
+
+\begin{itemize}
+\item Minimum Overlap: Any temporal overlap, however brief, between a reference event and a hypothesis event is sufficient to consider it a potential match. This setting
+maximizes sensitivity to detecting any part of a seizure.
+\item Pre-ictal Tolerance: A hypothesis event starting up to 30 seconds before the onset of a reference event can still be considered a detection of that event.
+\item Post-ictal Tolerance: A hypothesis event ending up to 60 seconds after the end of a reference event can still be considered part of the detection of that event.
+\item Minimum Duration: Reference or hypothesis events separated by less than 90 seconds are merged into a single, longer event before scoring. This duration corresponds
+to the sum of the pre- and post-ictal tolerances, preventing closely spaced detections from being penalized multiple times.
+\end{itemize}
+
+In this configuration, a reference event refers to a labeled seizure event, a hypothesis event refers to a model predicted event. Based on these criteria, an event-based
+TP occurs when a reference seizure event is correctly matched with one or more hypothesis seizure events according to the overlap and tolerance rules. An event-based FP
+corresponds to a hypothesis seizure event that does not match any reference event. An event-based FN represents a reference seizure event that is not matched by any
+hypothesis event. For the specific application of seizure detection, event-wise metrics are considered more clinically meaningful than epoch-wise metrics. Consequently,
+while both will be reported, event-wise performance will be the primary focus for evaluating the model's practical utility.
+
+Based on these setting, we define the accuracy, sensitivity, precision, f1-score and false alarm rate as following:
+
+\begin{itemize}
+\item Accuracy: the proportion of total instances that were correctly classified.
+\begin{equation}
+\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
+\end{equation}
+\item Sensitivity: the proportion of true positive instances that were correctly identified by the model.
+\begin{equation}
+\text{Sensitivity} = \frac{TP}{TP + FN}
+\end{equation}
+\item Precision: the proportion of instances predicted as positive that were actually positive.
+\begin{equation}
+\text{Precision} = \frac{TP}{TP + FP}
+\end{equation}
+\item F1 Score: the harmonic mean of Precision and Sensitivity, providing a single metric that balances both concerns.
+\begin{equation}
+\text{F1 Score} = 2 \times \frac{\text{Precision} \times \text{Sensitivity}}{\text{Precision} + \text{Sensitivity}} = \frac{2 \times TP}{2 \times TP + FP + FN}
+\end{equation}
+\item False positive rate (FPR): the number of false positives per 24 hours. A low FPR is crucial for clinical usability, as frequent false alarms can reduce clinician
+trust in the system.
+\begin{equation}
+\text{FPR} = \frac{FP}{FP + TN}
+\label{eq:fprate}
+\end{equation}
+\end{itemize}
+
+\section{Channel Relevance Estimation}
+
+To estimate the relevance of individual EEG channels within our Detach-ROCKET Ensemble, we adopted the methodology proposed by Solana et al. ~\cite{solana2024classificationrawmegeegdata}.
+This process first assesses channel relevance on each Detach-MINIROCKET model:
+
+\begin{enumerate}
+\item \textbf{Kernel Selection:} Sequential Feature Detachment (SFD) identifies and selects the most relevant kernels within the MiniROCKET model.
+\item \textbf{Channel Retrieval:} For each kernel selected by SFD, the specific EEG channels it processed are retrieved.
+\item \textbf{Importance Weighting:} Each retrieved channel receives an importance score proportional to its kernel's weight ($\theta_i$). It is then divided by the number
+of channels in that same kernel.
+\item \textbf{Relevance Aggregation:} The weighted importance scores for all channels are summed across the selected kernels. These sums are then normalized to create
+a relative channel relevance histogram.
+\end{enumerate}
+
+The final ensemble relevance for each channel is then determined by taking the median of relevancies from base models and normalizing across all channels.
+
+\cleardoublepage
+
+\chapter{Results and Analysis}
+\label{ch:resultsAndAnalysis}
+
+\section{Experiments on TUSZ Corpus}
+\subsection{Training and test with Detach-MINIROCKET and Ensemble}
+
+In this project, we trained two models, Detach-ROCKET and Detach Ensemble, on the TUSZ dataset.
+
+Due to hardware constraints and the large size of the dataset, we randomly select 50\% of the available subjects to construct the working dataset. This subset is then
+divided into training and test sets based on subject identifiers to ensure that the evaluation reflects the model's generalizability across individuals. We allocate 80\%
+of the subjects to the training set and the remaining 20\% to the test set. Each subject includes multiple sessions and runs, with each run containing several recordings
+labeled as either seizure or background (BCKG). See \todo{add plot of data split}. Notably, a portion of the subjects in the dataset contribute exclusively BCKG recordings,
+without any associated seizure activity.
+
+To accommodate memory limitations and promote a balanced and diverse training set, after segmenting the recordings in the training set into non-overlapping 10-second
+epochs, we include all available seizure epochs, randomly select an equal number of interictal epochs, and randomly sample half that number of background epochs for model
+training. For the evaluation of epoch-wise accuracy, this methodology resulted in an average of approximately 20,000 epochs being used for model training, with an average
+of about 5,000 epochs allocated for testing. \todo{add confusion matrix?} The models' performances were initially assessed using epoch-wise accuracy. Table~\ref{tab:modelaccuracy}
+shows the accuracy of both models, averaged over three trials.
+
+% As the training and test sets were partitioned at the subject level, these results indicate the model's capacity to generalize effectively across individual variations.
+
+The models are then evaluated on a dataset comprising the same subjects included in the test set during model training, while using all the epochs produced by these
+subjects without selecting a subset of them. Note that the evaluation dataset, though comprising the same subjects as test set, is however unbalanced with more non-seizure
+epochs than seizure epochs. Performance was evaluated using sensitivity, precision, F1-score, and False Positive Rate (FPR), computed at the recording level for both
+epoch-wise and event-wise analyses. Table~\ref{tab:standardmodelperformance} shows the performance metrics for the single Detach-MINIROCKET model using 10,000 features
+and 10-model Detach-MINIROCKET ensemble, each of the base models using 10,000 features. These reported values are averaged first across all evaluation recordings and
+then across the three random data partitions. The high event-wise F1-score of both models demonstrates the model's strong generalization capabilities across different
+individuals. Figure ~\ref{fig:example_evaluation} provides examples of the models' output on representative recordings containing either seizure or background EEG patterns.
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/TUSZ_sub-203_ses-03_szMonitoring_run-04.png}
+\caption{Correctly predicts all seizure events (TP) with no FP.}
+\label{fig:subfig_TP}
+\end{subfigure}
+\hfill % Adds horizontal flexible space between subfigures on the same line
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/TUSZ_sub-239_ses-00_szMonitoring_run-01.png} % Replace example-image-b with your_image_file2.png/jpg/pdf
+\caption{Fails to predict an existing seizure event (FN).}
+\label{fig:subfig_FN}
+\end{subfigure}
+
+\vspace{0.5cm} % Optional: Adds a small vertical space between rows
+
+% Second row of subfigures
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/TUSZ_sub-193_ses-09_szMonitoring_run-09.png} % Replace example-image-c with your_image_file3.png/jpg/pdf
+    \caption{Incorrectly predicts a seizure when no seizure is present (FP).}
+    \label{fig:subfig_FP}
+\end{subfigure}
+\hfill % Adds horizontal flexible space
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/TUSZ_sub-193_ses-19_szMonitoring_run-01.png} % Replace example-image-d with your_image_file4.png/jpg/pdf
+    \caption{Correctly predicts the absence of seizure (TN).}
+    \label{fig:subfig_TN}
+\end{subfigure}
+
+\caption{Examples of model evaluation outcomes.}
+\label{fig:example_evaluation}
+
+
+\end{figure}
+
+To further assess the model's generalization capabilities across individual subjects, subject-wise performance metrics were computed on the test set. Figure~\ref{fig:subjectscoretusz}
+illustrates the distribution of event-wise F1 scores and False Positive Rates(FPR per 24h) across individual subjects from a representative evaluation, revealing considerable
+inter-subject variability. For both models, a significant proportion of subjects obtained F1 scores in the highest bin of 0.9-1.0. FPR values also showed considerable
+variation across subjects, with a significant proportion of subjects demonstrating low false alarm rates(below 30). Despite this observed inter-subject performance variation,
+these distributions suggest that both models generalize effectively for a majority of individuals. It is important to note that the F1 score distribution presented in
+Figure~\ref{fig:subjectscoretusz} excludes subjects who contributed exclusively background (BCKG) recordings to the test set (i.e., had no annotated seizure events). For
+these subjects, True Positives (TP) and False Negatives (FN) are inherently zero, so the F1 score cannot be calculated.
+
+\begin{figure}[!ht]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/subjectf1_demini.png}
+\caption{Subject-wise event F1 score distribution for the Detach-MINIROCKET model on the TUSZ test set.}
+\label{fig:subf1_d}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/subjectfpr_demini.png}
+\caption{Subject-wise event FPR distribution for the Detach-MINIROCKET model on the TUSZ test set.}
+\label{fig:subfpr_d}
+\end{subfigure}
+
+\vspace{0.5cm} 
+
+% Second row of subfigures
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/subjectf1_tusz.png} 
+    \caption{Subject-wise event F1 score distribution for the Detach-MINIROCKET Ensemble on the TUSZ test set.}
+    \label{fig:subf1_e}
+\end{subfigure}
+\hfill 
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/subjectfpr_tusz.png} 
+    \caption{Subject-wise event FPR distribution for the Detach-MINIROCKET Ensemble on the TUSZ test set.}
+    \label{fig:subfpr_e}
+\end{subfigure}
+
+\caption{Distribution of subject-wise performance metrics on the TUSZ test set for different model configurations. }
+\label{fig:subjectscoretusz}
+
+\end{figure}
+
+While both models demonstrate good event-wise F1 scores and generalization across subjects, the Detach-MINIROCKET model exhibits lower epoch-wise performance. This suggests
+that, compared to the Detach Ensemble model, it's difficult for a single Detach-ROCKET model with 10,000 features to sufficiently sample the feature space and encode
+meaningful multichannel information. Despite this limitation, the single Detach-MINIROCKET model is significantly more computationally efficient, as it requires training
+only one model. On the other hand, although the Detach Ensemble model introduces higher computational costs, it offers enhanced model interpretability by providing a
+built-in way to generate label probabilities and estimate channel relevance, which is particularly valuable in the context of seizure detection.
+
+\subsection{Benchmark}
+To establish a robust, interpretable, and accessible baseline for our models, we selected catch22~\cite{lubba2019catch22} as our benchmark. catch22 offers a concise set
+of 22 highly discriminative and computationally inexpensive time-series features, distilled from the much larger hctsa feature set~\cite{fulcher2013highly}. Its design
+emphasizes generalizability and interpretability across diverse time series domains \cite{bagnall2017great, lubba2019catch22}. Furthermore, the widespread availability
+and easy implementation of catch22 contribute to its utility as a practical and reproducible benchmark for evaluating the performance and computational costs of more
+complex or specialized algorithms in TSC tasks.
+
+Our models and catch22 are evaluated on the TUSZ dataset. Table~\ref{tab:modelaccuracy} and Table~\ref{tab:standardmodelperformance} summarize a comparative performance
+with the benchmark model, averaged over three distinct random splits, each using 50\% of the total available subjects. Our results indicate that the Detach Ensemble
+model outperforms the other models in overall test accuracy, as well as in both epoch-wise and event-wise F1 scores. Specifically, Detach Ensemble achieved a test accuracy
+approximately 10\% higher than Detach-MINIROCKET and 2\% higher than catch22. For event-wise F1 scores, Detach Ensemble outperforms catch22 by 4\% and Detach-MINIROCKET
+by 1\%. For epoch-wise F1 scores, Detach Ensemble substantially outperforms both catch22 and Detach-MINIROCKET by 6\%. Notably, both Detach-MINIROCKET and the Detach
+Ensemble achieved higher event-wise F1 scores than catch22, while requiring significantly lower computational resources, as detailed in Section~\ref{sec:efficiency}.
+Furthermore, Detach-MINIROCKET exhibited the lowest False Positive Rate (FPR) among the evaluated models.
+
+\begin{table}[!ht]
+\begin{center}
+\caption{Comparison of epoch-wise training and test accuracies for the single Detach-MINIROCKET (D-MINIROCKET) model, Detach-MINIROCKET Ensemble (D-MINIROCKET Ens.) and catch22.}\todo{mean+std(range?), or median}
+\label{tab:modelaccuracy}
+\begin{tabular}{l|S[table-format=.2]|S[table-format=.2]|S[table-format=.2]}
+& \textbf{Train Acc.} & \textbf{Test Acc.} \\
+\hline
+D-MINIROCKET & 0.95 & 0.71  \\
+D-MINIROCKET Ens. & 0.97 & 0.81  \\
+catch22 & 1.00 & 0.79 \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}[!ht]
+\begin{center}
+\caption{Comparison of model performance for single Detach-MINIROCKET (D-MINI), 10-model Detach-MINIROCKET ensembles(D-MINI Ens.) and catch22, using 50\% of the dataset.}
+\label{tab:standardmodelperformance}
+\begin{tabular}{l|l % Column 1: Ensemble Type (multirow), Column 2: Evaluation Type
+S[table-format=.2]   % Sensitivity
+S[table-format=.2]   % Precision
+S[table-format=.2]   % F1 score
+S[table-format=5.0]}% <-- Alignments: 1st column left, 2nd middle and 3rd right, with vertical lines in between
+\textbf{Config.} & \textbf{Level}& \textbf{Sens.} & \textbf{Prec.} & \textbf{F1} & \textbf{FPR}\\
+\hline
+\multirow{4}{}{D-MINI} & Epoch & 0.52 & 0.68 & 0.51 & 7915 \\
+& \textit{Range} & \multicolumn{1}{c}{\textit{(0.50, 0.53)}} & \multicolumn{1}{c}{\textit{(0.66, 0.69)}} & \multicolumn{1}{c}{\textit{(0.49, 0.55)}} & \multicolumn{1}{c}{\textit{(6798, 9035)}} \\
+& Event & 0.90 & 0.86 & 0.86 & 27 \\
+& \textit{Range} & \multicolumn{1}{c}{\textit{(0.87, 0.91)}} & \multicolumn{1}{c}{\textit{(0.85， 0.86)}} & \multicolumn{1}{c}{\textit{(0.84, 0.87)}} & \multicolumn{1}{c}{\textit{(24, 30)}} \\
+\hline
+\multirow{4}{}{D-MINI Ens.} & Epoch & 0.72 & 0.60 & 0.57 & 14543 \\
+& \textit{Range} & \multicolumn{1}{c}{\textit{(0.65, 0.76)}} & \multicolumn{1}{c}{\textit{(0.42, 0.72)}} & \multicolumn{1}{c}{\textit{(0.40, 0.67)}} & \multicolumn{1}{c}{\textit{(7999, 22843)}} \\
+& Event & 0.95 & 0.85 & 0.87 & 37 \\
+& \textit{Range} & \multicolumn{1}{c}{\textit{(0.91, 0.97)}} & \multicolumn{1}{c}{\textit{(0.78, 0.90)}} & \multicolumn{1}{c}{\textit{(0.81, 0.91)}} & \multicolumn{1}{c}{\textit{(22, 51)}} \\
+\hline
+\multirow{4}{*}{catch22} & Epoch & 0.60 & 0.63 & 0.51 & 9603 \\
+& \textit{Range} & \multicolumn{1}{c}{\textit{(0.54, 0.65)}} & \multicolumn{1}{c}{\textit{(0.57, 0.71)}} & \multicolumn{1}{c}{\textit{(0.50, 0.52)}} & \multicolumn{1}{c}{\textit{(6022, 12103)}} \\
+& Event & 0.88 & 0.84 & 0.83 & 36 \\
+& \textit{Range} & \multicolumn{1}{c}{\textit{(0.84, 0.91)}} & \multicolumn{1}{c}{\textit{(0.81, 0.87)}} & \multicolumn{1}{c}{\textit{(0.82, 0.84)}} & \multicolumn{1}{c}{\textit{(32, 40)}} \\
+
+\end{tabular}
+
+\end{center}
+\end{table}
+
+\section{Sensitivity Analysis}
+
+The performance of a single Detach-MINIROCKET model, and consequently its sensitivity to hyperparameter changes, can be significantly influenced by the stochastic nature
+of its random convolutional kernel generation \cite{Dempster2020rocket, Dempster2021mini}. While this inherent randomness is integral to the efficiency of the ROCKET
+family, it makes it more difficult to isolate the specific impact of individual hyperparameter adjustments in limited model instances, as it can have a large variation
+due to randomness rather than solely the hyperparameter change. In contrast, Detach-Ensemble, by aggregating multiple Detach-MINIROCKET instances, reduces such stochastic
+effects, leading to more stable and representative performance characteristics. Given the foundational homogeneity between Detach Ensemble and its constituent Detach-MINIROCKET
+models (as the ensemble is built from them), our detailed sensitivity analysis was primarily focused on the Detach-Ensemble configuration.
+
+% To comprehensively evaluate the models and understand the influence of its various components and hyperparameters, we studied model sensitivity to key parameter choices:
+We therefore explored the effect of key parameter choices on the Detach-Ensemble's test accuracy, epoch-wise and event-wise F1 score. The key parameters investigated were:
+
+\begin{enumerate}
+\item number of models ($N$)
+\item epoch duration
+\item training data size
+\end{enumerate}
+
+Table~\ref{tab:hyperparam} presents the results for Detach Ensemble models configured with different $N$ and epoch durations trained on the same data split of the TUSZ
+dataset. The results indicate that changing the epoch duration between 5 and 20 seconds has a relatively minor influence on event-wise F1 scores, ranging from 0.86 to
+0.89 across these settings for an ensemble of $N=10$. However, the 5-second epoch model exhibits a substantially lower epoch-wise F1 score (0.45) compared to models
+with 10-second (0.64) or 20-second (0.66) epochs. Furthermore, the 20-second epoch model demonstrates a notably lower test accuracy (0.68) when compared to the accuracies
+achieved with 5-second (0.86) and 10-second (0.86) epoch models.
+
+When keeping the epoch duration fixed at 10 seconds, increasing the number of models $N$ in the ensemble generally leads to improved performance, particularly in F1 scores.
+Test accuracy rises from 0.73 at $N=5$ to 0.86 at $N=10$, but then slightly declines to 0.84 at $N=20$. This trend suggests that while larger ensembles improve the
+model's ability to detect seizure epochs and events, there may be a point of diminishing or slightly negative returns for test accuracy. This may originate from the slight
+overfitting to training set nuances or the inclusion of additional models that offer limited diversity relative to the existing models.
+
+\begin{table}[!ht]
+\begin{center}
+\caption{Performance evaluation of the Detach-Ensemble model under varying hyperparameter configurations.}
+\label{tab:hyperparam}
+% \setlength{\tabcolsep}{3pt}
+\begin{tabular}{S[table-format=2.0]|S[table-format=2.0]|S[table-format=.2]|S[table-format=.2]|S[table-format=.2]}
+\textbf{$N$} & \textbf{Epoch Duration} & \textbf{Test Acc.} & \textbf{Epoch F1} & \textbf{Event F1} \\
+\hline
+10 & 10 & 0.86 & 0.64 & 0.89 \\
+10 & 5 & 0.86 & 0.45 & 0.86 \\
+10 & 20 & 0.68 & 0.66 & 0.89 \\
+5 & 10 & 0.73 & 0.46 & 0.85 \\
+20 & 10 & 0.84 & 0.69 & 0.92 \\
+
+\end{tabular}
+
+\end{center}
+\end{table}
+
+The impact of training data size on model performance is shown in Figure~\ref{fig:datasizemetrics}. A notable deterioration in performance is observed when the proportion
+of training data used falls below 30\% of the total dataset. Beyond this point, the model achieves a relatively stable and high level of performance. This finding supports
+our decision to use 50\% of the available data for training, as it offers a conservative, resource-efficient approach while ensuring robust model performance. The result
+also suggests model's ability for effective generalization even when trained on limited dataset sizes.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/datasizemetrics.png}
+\caption{Performance of the Detach-Ensemble model on varying training datasize proportions}
+\label{fig:datasizemetrics}
+\end{figure}
+
+\section{Cross-Dataset Evaluation}
+
+To evaluate the models' generalization capabilities on unseen data, we assess model performance on the Siena Scalp EEG Database. This independent dataset provides an
+opportunity to test the model's robustness to variations in patient populations, recording equipment, and potential differences in EEG characteristics. Table~\ref{tab:crossdata}
+presents the averaged performance of our models when evaluated on the entire Siena dataset, compared with catch22. The results demonstrate that both Detach-MINIROCKET
+and Detach-Ensemble models achieve better F1 scores (both epoch-wise and event-wise) and lower event-wise False Positive Rates (FPR) compared to catch22 on this cross-dataset
+validation task.
+
+To further understand models' cross-dataset generalization capabilities, we refer to the publicly reported outcomes of the Seizure Detection Challenge 2025.
+
+In this challenge, proposed algorithms were trained on publicly available datasets and then evaluated on a private EEG dataset (Dianalund Scalp EEG dataset), with rankings
+primarily determined by their event-wise F1 score. Adhering to the same epoch-to-event aggregation rules employed in the challenge, our Detach-MINIROCKET and Detach-Ensemble
+model achieved an event-wise F1 score of 0.41 and 0.42 on the Siena dataset, respectively. This performance is highly competitive with the top-ranked algorithms in the
+challenge, which reported event-wise F1 scores of 0.43, 0.36, and 0.34. Given that the Siena dataset represents an entirely different data distribution from the training
+set (TUSZ), the performance of our models indicates a strong capacity for generalization and robust seizure detection across diverse datasets.
+
+\begin{table}[!ht]
+\begin{center}
+\caption{Cross-dataset performance comparison of Detach-MINIROCKET, Detach-MINIROCKET Ensemble, and catch22 on the Siena dataset.}
+\label{tab:crossdata}
+% \setlength{\tabcolsep}{3pt}
+\begin{tabular}{l|S[table-format=.2]|S[table-format=.2]|S[table-format=4.0]}% <-- Alignments: 1st column left, 2nd middle and 3rd right, with vertical lines in between
+& \textbf{Epoch F1} & \textbf{Event F1} & \textbf{Event FPR} \\
+\hline
+D-ROCKET & 0.36 & 0.41 & 55 \\
+D-ROCKET Ens. & 0.34 & 0.42 & 58 \\
+catch22 & 0.28 & 0.37 & 82\\
+
+\end{tabular}
+
+\end{center}
+\end{table}
+
+\section{Channel Relevance}
+
+To investigate the relative importance of different EEG channels for seizure detection within our framework, we employed the channel relevance estimation method proposed
+by Solana et al. \cite{solana2024classificationrawmegeegdata}. This method was applied to each of the well-performing Detach-MINIROCKET Ensemble models developed during
+our training phase. Figure~\ref{fig:cr} illustrates the mean and standard deviation of the estimated channel relevance values, aggregated across these selected ensemble
+models.
+
+Observations from Figure~\ref{fig:cr} indicate that channels Fp1 and C4 exhibit notably high mean relevance values compared to other channels. However, these channels
+also display relatively large standard deviations. Conversely, channel F8 presents with a significantly low mean relevance value and a comparatively small standard deviation,
+indicating its consistently minor role in seizure detection for our models on the TUSZ dataset.
+
+Further analysis involved ranking channels from most to least relevant within each individual ensemble model. This ranking revealed that channels Fp1, C4, and O1 were
+frequently identified among the top four most relevant channels (appearing 4 out of 7 times for each of these channels across the evaluated models). In contrast, channel
+F8 was most frequently found among the top four least relevant channels (6 out of 7 model instances), with channel T3 also appearing frequently in this less relevant
+group (4 out of 7 model instances).
+
+The consistent findings combining these two analytical approaches suggest that channels Fp1 and C4 are likely more critical for our seizure detection task on the TUSZ
+dataset, while channel F8 appears to be consistently less informative. In practical scenarios where computational resources are constrained, or where feature selection
+is desired to emphasize inter-channel relationships or reduce model complexity, these findings suggest that prioritizing channels such as Fp1, C4, and potentially O1,
+while deprioritizing F8 and possibly T3, could be a viable strategy.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/cr_std.png}
+\caption{Mean and standard deviation of estimated channel relevance values across selected Detach-MINIROCKET Ensemble models. Higher mean values suggest greater overall importance, while standard deviation indicates variability across models.}
+\label{fig:cr}
+\end{figure}
+
+\section{Model Efficiency}
+\label{sec:efficiency}
+
+The computational efficiency of the models, particularly their prediction speed, is a critical factor for practical deployment, especially in real-time seizure detection
+scenarios. To evaluate this, prediction times were measured on an Intel(R) Xeon(R) Platinum 8480C processor for a representative EEG recording of 1208 seconds in duration.
+The results are summarized in Table~\ref{tab:model_predict_time}.
+
+As indicated in Table~\ref{tab:model_predict_time}, the single Detach-MINIROCKET model processed the entire recording in just 0.74 seconds, which is approximately 17.1
+times faster than the catch22 benchmark. The Detach-MINIROCKET Ensemble, while inherently introducing a higher computational cost due to the aggregation of multiple individual
+models, still completed the prediction in 6.88 seconds. This remains notably faster than catch22, by a factor of approximately 1.8. These findings highlight the significant
+computational advantages of the ROCKET-based feature transformation approach employed by our models.In particular, the rapid inference capability of the single Detach-MINIROCKET
+model demonstrates strong potential for applications requiring near real-time processing and decision-making. While the ensemble model requires increased prediction time,
+it provides enhanced predictive performance and is therefore still a competitive choice.
+
+\begin{table}[!ht]
+\begin{center}
+\caption{Model prediction time (seconds) on a 1208s EEG recording.}
+\label{tab:model_predict_time}
+% \setlength{\tabcolsep}{3pt}
+\begin{tabular}{S[table-format=.2]|S[table-format=.2]|S[table-format=.2]}% <-- Alignments: 1st column left, 2nd middle and 3rd right, with vertical lines in between
+\textbf{D-MINIROCKET} & \textbf{D-MINIROCKET Ens.} & \textbf{Catch22} \\
+\hline
+0.74s & 6.88s & 12.68s  \\
+
+\end{tabular}
+
+\end{center}
+\end{table}
+
+\cleardoublepage
+\chapter{Discussion}
+\label{ch:discussion}
+\section{Benchmark selection}
+We chose catch22 as our benchmark because it provides a general and universal solution for time series classification (TSC) tasks. As a state-of-the-art framework in
+TSC, catch22 shares conceptual similarities with detach-ROCKET in its approach to feature pruning. The benchmark is easily accessible, well-documented, and has demonstrated
+effectiveness across numerous TSC applications. Notably, EEG datasets are included in the calibration set of time series classification tasks that catch22 employs, which
+provides some relevance to our seizure detection domain. However, it is important to acknowledge that catch22 is not specifically designed as a seizure detection method,
+nor is it tailored for the unique characteristics and requirements of seizure detection tasks. This limitation indicates that direct comparisons may not constitute entirely
+fair evaluations, as the benchmark was not optimized for the specific challenges inherent in seizure detection, such as the temporal dynamics and the importance of minimizing
+false negatives in clinical applications.
+
+It is important to point out that our model, Detach-ROCKET and Detach Ensemble, are not adjusted either for specific challenges in seizure detection. From this perspective,
+it is reasonable to conduct such a comparison. Importantly, the computational efficiency of catch22 features serves as a baseline for understanding the relative performance
+of our models in terms of efficiency. It also helps establish whether the additional complexity of our ensemble model yields meaningful improvements while not sacrificing
+efficiency excessively.
+
+\section{Subject Variations}
+\label{sec:subjectvariations}
+
+A key observation from our evaluation is the substantial inter-subject variability in model performance, as illustrated by the subject-wise scores on the TUSZ dataset
+(Figure~\ref{fig:subjectscoretusz}). This heterogeneity is not unexpected and reflects the inherent complexities of EEG-based seizure detection. Several factors likely
+contribute to these observed variations:
+
+\subsection{Variations in Data Composition}
+
+The composition of data available for each subject in the TUSZ corpus introduces a source of variability. Some subjects exclusively contribute background (BCKG) recordings,
+meaning the model's performance for these individuals is solely based on its ability to correctly identify non-seizure states and avoid false positives. Also, the number
+and length of seizures and the total duration of recordings can vary a lot between subjects with seizure events.
+
+\subsection{Inherent Seizure Heterogeneity}
+Epileptic seizures are highly heterogeneous phenomena, varying significantly not only between individuals but also potentially within the same individual over time. Subjects
+may exhibit different seizure types (e.g., focal vs. generalized, varying electrographic signatures) or present with idiosyncratic EEG patterns during ictal events. The
+Detach-MINIROCKET features, while robust, are learned from a diverse pool of seizures in the training set. However, if a particular subject's seizures show highly unique
+or underrepresented electrographic characteristics compared to the dominant patterns in the training data, the model may struggle to generalize effectively to that specific
+individual.
+
+\subsection{Potential Variations in EEG Acquisition}
+
+While both the TUSZ and Siena datasets adhere to the standard 10-20 electrode placement system, the practical application of scalp electrodes can introduce subtle yet
+impactful deviations between subjects. Minor discrepancies in the precise anatomical landmarking for electrode positions can lead to considerable differences in the underlying
+cortical sources captured by each channel~\cite{PASCUALMARQUI1999169}. Therefore, the spatio-temporal patterns learned by the Detach-MINIROCKET model might be expressed
+differently across subjects due to placement variations. Additionally, inherent inter-subject differences in scalp thickness, skull conductivity, and electrode-scalp
+impedance further modulate the recorded EEG signals~\cite{Lai2005Estimation}. These variations can persist even after careful preprocessing and would possibly influence
+model performance on a subject basis.
+
+\section{Limitations}
+\subsection{Impact of Randomness on Model Performance and Reproducibility}
+The performance variations observed across different experimental runs (See Table~\ref{tab:standardmodelperformance})in our study highlight a critical limitation inherent
+to the ROCKET-based methodologies: the influence of multiple sources of randomness on model performance and result reproducibility. First, the random partitioning of
+subjects into training and test sets introduces variability in the data distribution characteristics between different experimental runs. Given the substantial inter-subject
+variability discussed in Section~\ref{sec:subjectvariations}, different subject splits can lead to training and test sets with markedly different difficulty levels and
+distributional properties. Second, the core ROCKET methodology relies on the generation of numerous random convolutional kernels with stochastically determined parameters
+including kernel length, weights, bias, dilation, and padding~\cite{Dempster2020rocket, Dempster2021mini}. The realization of these random kernels fundamentally determines
+the feature space representation and, consequently, the model's capacity to capture relevant temporal patterns for seizure detection.
+
+These randomness sources are shown as substantial variation in reported performance metrics across different experimental runs, even when using identical hyperparameters
+and methodological configurations. Hyperparameter optimization and sensitivity analysis becomes less reliable when performance estimates are subject to high variance,
+especially with limited experimantal runs. Additionally, the comparison between different methodological approaches may be confounded by random variation rather than reflecting
+true algorithmic differences.
+
+\subsection{Computational Resource Constraints and Methodological Limitations}
+
+While the Detach-ROCKET and Detach-MINIROCKET models are inherently efficient and computationally lightweight compared to deep learning alternatives, our study was significantly
+constrained by the large scale of the EEG datasets and the associated memory requirements rather than the computational complexity of the models themselves. The TUSZ dataset,
+with its thousands of multi-channel EEG recordings, presents substantial challenges in terms of data loading, preprocessing, feature transformation storage, and overall
+memory management, particularly when operating within a resource-constrained environment. The ensemble methodology, while computationally efficient in terms of individual
+model training, amplifies the memory requirements due to the need to store and manage multiple model instances and their associated feature transformations.
+
+Due to this limitation, we were constrained to use 50\% of the available subjects from the TUSZ dataset for training and testing. While the models demonstrated sufficient
+performance on the test set(See Figure~\ref{fig:datasizemetrics}), this reduced dataset size could potentially limit their generalizability to unseen data.  Furthermore,
+these memory limitations restricted our ability to conduct a more extensive exploration of the hyperparameter space, which may in turn affect our thorough understanding
+of the effects these parameters have on model performance and behavior.
+
+\section{Ethics and Sustainability}
+
+The development and deployment of automated seizure detection systems raises important ethical considerations that must be carefully addressed to ensure responsible clinical
+implementation. Our Detach-ROCKET-based approach demonstrates several positive characteristics that contribute to both ethical practice and environmental sustainability
+in healthcare technology.
+
+\subsection{Ethical Considerations}
+
+The primary ethical imperative in developing automated seizure detection systems is to enhance patient care while minimizing potential harm. Our models are designed as
+clinical decision support tools rather than replacements for neurological expertise. The interpretability features of the Detach Ensemble, particularly the channel relevance
+estimation capabilities, provide clinicians with insights into the model's decision-making process, supporting informed clinical judgment rather than creating "black box"
+automated decisions~\cite{solana2024classificationrawmegeegdata}.
+
+The substantial inter-subject variability observed in our results (Figure~\ref{fig:subjectscoretusz}) highlights important considerations regarding algorithmic fairness
+and bias. While some performance variation is inherent to the clinical heterogeneity of epilepsy, it is crucial that automated systems do not systematically disadvantage
+particular patient populations. Our cross-dataset evaluation on the Siena database demonstrates the model's ability to generalize across different recording environments
+and patient cohorts, suggesting reduced risk of systematic bias toward specific institutional or demographic groups.
+
+Patient privacy and data security represent critical ethical concerns in EEG-based systems. The feature-based approach employed by Detach-ROCKET transforms raw EEG signals
+into statistical representations that retain diagnostic utility while potentially reducing privacy risks compared to storing raw neurophysiological data. Additionally,
+the computational efficiency of our approach enables local processing and analysis, reducing the need for sensitive medical data transmission and cloud-based computation.
+
+\subsection{Sustainability Considerations}
+
+The computational efficiency demonstrated by our Detach-ROCKET models contributes significantly to the environmental sustainability of automated seizure detection systems.
+As shown in Table~\ref{tab:model_predict_time}, our single Detach-MINIROCKET model processes EEG recordings approximately 17 times faster than the catch22 benchmark,
+while the ensemble approach remains nearly twice as fast. This computational efficiency translates directly into reduced energy consumption during clinical deployment,
+particularly important given the continuous monitoring requirements typical of seizure detection applications.
+
+The reduced computational requirements enable deployment on less powerful hardware platforms, extending the accessibility of automated seizure detection to resource-constrained
+healthcare environments. This democratization of advanced neurological monitoring technology has significant implications for global health equity, particularly in low-
+and middle-income countries where access to specialized neurological expertise may be limited.
+
+Furthermore, the efficiency gains achieved through our methodology reduce the carbon footprint associated with large-scale EEG monitoring systems. Traditional deep learning
+approaches often require substantial computational resources for both training and inference, contributing to significant energy consumption. The ROCKET-based feature transformation
+approach requires minimal computational overhead during inference while maintaining competitive accuracy, representing a more sustainable approach to automated medical diagnosis.
+
+The modular design of the Detach Ensemble also supports sustainable software development practices. The separation of feature generation from classification enables efficient
+model updates and adaptations without requiring complete system retraining, reducing both computational costs and development time for clinical system maintenance and improvement.
+
+\cleardoublepage
+\chapter{Conclusions and Future work}
+\label{ch:conclusionsAndFutureWork}
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+\end{document} 

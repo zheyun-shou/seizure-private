@@ -97,7 +97,7 @@ def get_channel_from_event_info(event_info):
         chs[i] = chs[i] + "-Avg"
     return chs
 
-def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_duration=20, epoch_overlap=0, inference=False):
+def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_duration=10, epoch_overlap=0, inference=False):
     """
     Extract seizure and nonseizure epochs from a specific recording based on subject, session, task, and run.
 
@@ -281,7 +281,7 @@ def get_data_from_epochs(epochs, return_epoch_data=False):
         
     return segments
 
-def process_recording(ids, bids_root, downsample=2.0, epoch_duration=20, epoch_overlap=0, event_offset=0):
+def process_recording(ids, bids_root, epoch_duration, epoch_overlap, event_offset, downsample=2.0):
     
     tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv")
     edf_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf")
@@ -293,7 +293,7 @@ def process_recording(ids, bids_root, downsample=2.0, epoch_duration=20, epoch_o
     
     return seizure_epoch, non_seizure_epoch, bckg_epoch, t
 
-def read_dataset(bids_root, subject_ids=None, data_size=1, max_workers=1):
+def read_dataset(bids_root, epoch_duration, event_offset=0, epoch_overlap=0, subject_ids=None, max_workers=1):
     
     recording_ids = read_ids_from_bids(bids_root)
     # keep the recording ids that are in the subject_ids
@@ -307,7 +307,7 @@ def read_dataset(bids_root, subject_ids=None, data_size=1, max_workers=1):
 
     if max_workers == 1:
         for ids in recording_ids:
-            seizure_epoch, non_seizure_epoch, bckg_epoch, t = process_recording(ids, bids_root, epoch_duration=20, epoch_overlap=0, event_offset=0)
+            seizure_epoch, non_seizure_epoch, bckg_epoch, t = process_recording(ids, bids_root, epoch_duration, epoch_overlap, event_offset)
             if seizure_epoch is not None:
                 seizure_epochs.extend(seizure_epoch)
             if non_seizure_epoch is not None:
@@ -318,7 +318,7 @@ def read_dataset(bids_root, subject_ids=None, data_size=1, max_workers=1):
     else:
         # multirpocessing in cpu
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(process_recording, ids, bids_root) for ids in recording_ids]
+            futures = [executor.submit(process_recording, ids, bids_root, epoch_duration, epoch_overlap, event_offset) for ids in recording_ids]
             for future in as_completed(futures):
                 res = future.result()
                 if res[0] is not None:

@@ -59,6 +59,7 @@ if __name__ == "__main__":
     train_size = 0.8
     data_size = 0.5
 
+
     # decom_wavelets = wavelet_decompose_channels_from_segment(segment, times, desired_channel, event_info, level=5, output=True)
 
     subject_ids = []
@@ -70,13 +71,13 @@ if __name__ == "__main__":
                 subject_ids.append(subject_id)
     subject_ids = np.unique(subject_ids)
     # only keep odd subject ids, data_size=0.5, only in TUSZ
-    if data_size == 0.5:
-        subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+    # if data_size == 0.5:
+    #     subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
     
     # shuffle subject ids and take the first 0.6 of them
-    # random.seed(42)
-    # random.shuffle(subject_ids)
-    # subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
+    random.seed(40)
+    random.shuffle(subject_ids)
+    subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
         
     train_subject_idx, test_subject_idx = train_test_split(subject_ids, train_size=train_size, random_state=42)
     train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
@@ -110,13 +111,13 @@ if __name__ == "__main__":
     # catch22 model
     # model = Catch22Classifier(random_state=42, n_jobs=-1)
     # Detach rocket model
-    #model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=True, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
+    model = DetachRocket('pytorch_minirocket', num_kernels=10000, verbose=False, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
 
     # Rocket model from sktime
     #model = RocketClassifier(rocket_transform="minirocket", n_jobs=-1)
 
     # Detach minirocket ensemble model
-    model = DetachEnsemble(num_models=5, num_kernels=10000, model_type='pytorch_minirocket', verbose=False)
+    # model = DetachEnsemble(num_models=10, num_kernels=10000, model_type='pytorch_minirocket', verbose=False)
     
     model.fit(X_train, y_train)
     
@@ -124,7 +125,7 @@ if __name__ == "__main__":
     print(f"Model training took: {end_model_time - start_model_time:.2f} seconds")
     
     # save model
-    model_name = '0520_en_mini_datasize0.5odd_model5'
+    model_name = '0528_de_mini_seed40'
     joblib.dump(model, 'D:/seizure/models/' + model_name + '.pkl')
 
     # load model

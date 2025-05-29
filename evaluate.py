@@ -59,7 +59,7 @@ from timescoring.annotations import Annotation
 from timescoring import scoring, visualization
 from timescoring.scoring import SampleScoring, EventScoring
 
-def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0, epoch_duration=20, epoch_overlap=0, plot=False, ss_path=None):
+def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0, epoch_duration=10, epoch_overlap=0, plot=False, ss_path=None):
 
     model = joblib.load(model_path)
     raw_data = read_raw_edf(edf_path, preload=True)
@@ -152,7 +152,10 @@ if __name__ == "__main__":
     bids_root = f'F:\BIDS_{dataset}' # Replace with your actual path
     threshold = 0.5
     train_size = 0.8
-    model_name = '0520_en_mini_datasize0.5odd' 
+    rnd_seed = 42
+    epoch_duration = 10 # in seconds
+    data_size = 0.5
+    model_name = '0527_en_mini_datasize0.5_seed42' 
 
     
     subject_ids = []
@@ -165,28 +168,28 @@ if __name__ == "__main__":
     subject_ids = np.unique(subject_ids)
     
     if dataset == "TUSZ":
-        data_size = 0.5
+        
         # only keep odd subject ids, data_size=0.5, only in TUSZ
-        if data_size == 0.5:
-            subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
-        # random.seed(42)
-        # random.shuffle(subject_ids)
-        # subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
+        # if data_size == 0.5:
+        #     subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
+        random.seed(rnd_seed)
+        random.shuffle(subject_ids)
+        subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
             
         train_subject_idx, test_subject_idx = train_test_split(subject_ids, train_size=train_size, random_state=42)
-        train_segments, train_epoch_numbers_df = read_dataset(bids_root, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
-        test_segments, test_epoch_numbers_df = read_dataset(bids_root, test_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+        # train_segments, train_epoch_numbers_df = read_dataset(bids_root, epoch_duration, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+        # test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, test_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
         
         
-        print(f"Train subjects: {train_subject_idx}")
-        print(f"Test subjects: {test_subject_idx}")
+        # print(f"Train subjects: {train_subject_idx}")
+        # print(f"Test subjects: {test_subject_idx}")
         
-        X_train = np.concatenate([s['epoch'] for s in train_segments]).astype(np.float32)
-        y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
-        X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
-        y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
+        # X_train = np.concatenate([s['epoch'] for s in train_segments]).astype(np.float32)
+        # y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
+        # X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
+        # y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
         
-        del train_segments, test_segments
+        # del train_segments, test_segments
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("cuda available: ", torch.cuda.is_available())
@@ -224,7 +227,7 @@ if __name__ == "__main__":
     
     if dataset == "Siena":
         data_size = 1
-        test_segments, test_epoch_numbers_df = read_dataset(bids_root, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+        test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
         test_subject_idx = subject_ids
         
         X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)

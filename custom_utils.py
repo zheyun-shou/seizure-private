@@ -267,3 +267,42 @@ def plot_eeg_segment(segment_data, times, channel_name, event_info):
     plt.title(f'EEG Segment for Channel {channel_name}')
     plt.grid(True)
     # plt.show()
+    
+# write a function to plot certain channel, certain time window of a recording
+def plot_eeg_channel_recording(file_path, channel_name, start_time, end_time):
+    """
+    Plots a specific channel segment of an EEG recording.
+
+    Parameters:
+    - file_path (str): Path to the EEG file.
+    - channel_name (str): Name of the channel to plot.
+    - start_time (float): Start time of the segment in seconds.
+    - end_time (float): End time of the segment in seconds.
+    """
+    raw = read_raw_edf(file_path, preload=False)
+    raw.pick_channels([channel_name])
+    
+    # Get data and times
+    data, times = raw[channel_name]
+    
+    # Convert times to seconds
+    times = times / raw.info['sfreq']
+    
+    # Filter data for the specified time window
+    mask = (times >= start_time) & (times <= end_time)
+    
+    plt.figure(figsize=(10, 4))
+    plt.plot(times[mask], data[0][mask])
+    plt.xlabel('Time (s)')
+    plt.ylabel('Amplitude (µV)')
+    plt.title(f'EEG Segment for Channel {channel_name} from {start_time}s to {end_time}s')
+    plt.grid(True)
+    plt.show()
+
+if __name__ == "__main__":
+    # Example usage
+    file_path = 'F:/BIDS_Siena/sub-00/ses-01/eeg/sub-00_ses-01_task-szMonitoring_run-00_eeg.edf'
+    channel_name = 'T4-Avg'
+    start_time = 1100
+    end_time = 1300
+    plot_eeg_channel_recording(file_path, channel_name, start_time, end_time)

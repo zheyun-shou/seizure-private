@@ -27,21 +27,21 @@ def process_score(csv_path):
     avg_sample_sensitivity = df_no_nan["sample_sensitivity"].mean()
     avg_sample_precision   = df_no_nan["sample_precision"].mean()
     avg_sample_f1          = df_no_nan["sample_f1"].mean()
-    # avg_sample_fpRate      = df_no_nan["sample_fpRate"].mean()
+    avg_sample_fpRate      = df_no_nan["sample_fpRate"].mean()
     avg_event_sensitivity  = df_no_nan["event_sensitivity"].mean()
     avg_event_precision    = df_no_nan["event_precision"].mean()
     avg_event_f1           = df_no_nan["event_f1"].mean()
-    # avg_event_fpRate       = df_no_nan["event_fpRate"].mean()
+    avg_event_fpRate       = df_no_nan["event_fpRate"].mean()
 
     print("Averages from non-NaN rows:")
     print(f"sample_sensitivity: {avg_sample_sensitivity:.3f}")
     print(f"sample_precision:   {avg_sample_precision:.3f}")
     print(f"sample_f1:          {avg_sample_f1:.3f}")
-    # print(f"sample_fpRate:      {avg_sample_fpRate:.3f}")
+    print(f"sample_fpRate:      {avg_sample_fpRate:.3f}")
     print(f"event_sensitivity:  {avg_event_sensitivity:.3f}")
     print(f"event_precision:    {avg_event_precision:.3f}")
     print(f"event_f1:           {avg_event_f1:.3f}")
-    # print(f"event_fpRate:       {avg_event_fpRate:.3f}")
+    print(f"event_fpRate:       {avg_event_fpRate:.3f}")
 
 def process_ts(csv_path):
     # calculate the sum of the first column and the sum of the second column
@@ -188,7 +188,7 @@ def plot_f1_scores_histogram(f1_scores, title='Histogram of Subject FPR',
 
 if __name__ == "__main__":
     
-    csv_file_path = "D:/seizure/results/0512_en_mini_datasize0.5_epoch20_TUSZ/results_w_fp.csv"
+    csv_file_path = "D:/seizure/results/0521_en_mini_datasize0.5odd_epoch6_TUSZ/results_w_fp.csv"
 
     process_score(csv_file_path)
     # process_score_subject_wise(csv_file_path)

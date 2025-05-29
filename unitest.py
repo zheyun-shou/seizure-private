@@ -166,38 +166,39 @@ def plot_subject_f1_scores(subject_ids, f1_scores, title='Subject-wise F1 Score 
     plt.show()
 
 # --- Example Usage ---
-if __name__ == '__main__':
-    # Example data: Replace with your actual subject IDs and their F1 scores
-    # Let's assume you have F1 scores for 15 subjects
-    num_subjects = 15
-    example_subject_ids = [f'Subject_{i+1}' for i in range(num_subjects)]
-    # Generate some random F1 scores between 0.5 and 0.95 for demonstration
-    np.random.seed(42) # for reproducibility
-    example_f1_scores = np.random.uniform(low=0.50, high=0.95, size=num_subjects)
-    example_f1_scores = np.round(example_f1_scores, 2)
+# if __name__ == '__main__':
+#     # Example data: Replace with your actual subject IDs and their F1 scores
+#     # Let's assume you have F1 scores for 15 subjects
+#     num_subjects = 15
+#     example_subject_ids = [f'Subject_{i+1}' for i in range(num_subjects)]
+#     # Generate some random F1 scores between 0.5 and 0.95 for demonstration
+#     np.random.seed(42) # for reproducibility
+#     example_f1_scores = np.random.uniform(low=0.50, high=0.95, size=num_subjects)
+#     example_f1_scores = np.round(example_f1_scores, 2)
 
-    print("Example Subject IDs:", example_subject_ids)
-    print("Example F1 Scores:", example_f1_scores)
+#     print("Example Subject IDs:", example_subject_ids)
+#     print("Example F1 Scores:", example_f1_scores)
 
-    # Generate the plot
-    plot_subject_f1_scores(example_subject_ids, example_f1_scores,
-                           title='Model Performance (F1 Score) per Subject on TUSZ Dataset',
-                           xlabel='Test Subject ID',
-                           ylabel='Event-wise F1 Score')
+#     # Generate the plot
+#     plot_subject_f1_scores(example_subject_ids, example_f1_scores,
+#                            title='Model Performance (F1 Score) per Subject on TUSZ Dataset',
+#                            xlabel='Test Subject ID',
+#                            ylabel='Event-wise F1 Score')
 
-    # Example with fewer subjects, not sorted
-    example_subject_ids_short = ['S1', 'S5', 'S3', 'S2', 'S4']
-    example_f1_scores_short = [0.85, 0.72, 0.91, 0.65, 0.78]
-    plot_subject_f1_scores(example_subject_ids_short, example_f1_scores_short,
-                           title='Subject Performance (Unsorted)',
-                           bar_color='lightcoral')
+#     # Example with fewer subjects, not sorted
+#     example_subject_ids_short = ['S1', 'S5', 'S3', 'S2', 'S4']
+#     example_f1_scores_short = [0.85, 0.72, 0.91, 0.65, 0.78]
+#     plot_subject_f1_scores(example_subject_ids_short, example_f1_scores_short,
+#                            title='Subject Performance (Unsorted)',
+#                            bar_color='lightcoral')
 
-    # You can also create a histogram to see the distribution
-    plt.figure(figsize=(8, 5))
-    plt.hist(example_f1_scores, bins=5, color='teal', edgecolor='black')
-    plt.title('Histogram of Subject F1 Scores', fontsize=15)
-    plt.xlabel('F1 Score', fontsize=12)
-    plt.ylabel('Number of Subjects', fontsize=12)
-    plt.grid(axis='y', alpha=0.75)
-    plt.tight_layout()
-    plt.show()
+#     # You can also create a histogram to see the distribution
+#     plt.figure(figsize=(8, 5))
+#     plt.hist(example_f1_scores, bins=5, color='teal', edgecolor='black')
+#     plt.title('Histogram of Subject F1 Scores', fontsize=15)
+#     plt.xlabel('F1 Score', fontsize=12)
+#     plt.ylabel('Number of Subjects', fontsize=12)
+#     plt.grid(axis='y', alpha=0.75)
+#     plt.tight_layout()
+#     plt.show()
+
