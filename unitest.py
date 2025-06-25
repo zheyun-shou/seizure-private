@@ -202,3 +202,44 @@ def plot_subject_f1_scores(subject_ids, f1_scores, title='Subject-wise F1 Score 
 #     plt.tight_layout()
 #     plt.show()
 
+if __name__ == "__main__":
+    BIDS_ROOT = 'F:\BIDS_TUSZ'  # Replace with your actual path
+    # calcutale how many seizure recordings a subject has, print the subject_id and sz_count for each subject
+    sz_count = {}
+    for root, dirs, files in os.walk(BIDS_ROOT):
+        for file in files:
+            if file.endswith(".edf"):
+                base = file[:-8]  # remove "_eeg.edf" from the end
+                json_file = base + "_eeg.json"
+                tsv_file = base + "_events.tsv"
+
+                events_df = pd.read_csv(os.path.join(root, tsv_file), sep='\t')
+                # Check if the relevant columns exist in the dataframe
+                required_columns = ['onset', 'duration', 'channels']
+                if not all(col in events_df.columns for col in required_columns):
+                    raise ValueError(f"One or more of the required columns {required_columns} not found in the file.")
+                
+                subject_id = base.split("_")[0]
+                # Count the number of seizure recordings for this subject, not the number of seizures
+
+                if subject_id not in sz_count:
+                    sz_count[subject_id] = 0
+                if "sz" in events_df["eventType"].values:
+                    sz_count[subject_id] += 1
+                
+    # for subject_id, count in sz_count.items():
+    #     print(f"Subject ID: {subject_id}, Seizure Count: {count}")
+        
+    # print the distribution of seizure counts as a figure, use bin size of 5
+    sz_counts = list(sz_count.values())
+    plt.figure(figsize=(10, 6))
+    plt.hist(sz_counts, bins=range(0, max(sz_counts) + 5, 5), color='skyblue', edgecolor='black')
+    plt.title('Distribution of Seizure Recordings per Subject', fontsize=16)
+    plt.xlabel('Number of Seizure Recordings', fontsize=14)
+    plt.ylabel('Number of Subjects', fontsize=14)
+    
+    plt.xticks(range(0, max(sz_counts) + 5, 5))
+    plt.grid(axis='y', alpha=0.75)  
+    plt.tight_layout()
+    
+    plt.show()

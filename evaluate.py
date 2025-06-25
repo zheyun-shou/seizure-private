@@ -152,10 +152,10 @@ if __name__ == "__main__":
     bids_root = f'F:\BIDS_{dataset}' # Replace with your actual path
     threshold = 0.5
     train_size = 0.8
-    rnd_seed = 42
+    rnd_seed = 41
     epoch_duration = 10 # in seconds
     data_size = 0.5
-    model_name = '0527_en_mini_datasize0.5_seed42' 
+    model_name = '0528_de_mini_seed41' 
 
     
     subject_ids = []
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     
     if dataset == "Siena":
         data_size = 1
-        test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+        test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, max_workers=2) # set max_workers to 1 for debugging
         test_subject_idx = subject_ids
         
         X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     
     subject_id_list = []
     bckg_counter,seiz_counter = 0, 0
-    result_path = f"D:/seizure/results/{model_name}_{dataset}/results_w_fp.csv"
+    result_path = f"D:/seizure/results/{model_name}_{dataset}/results.csv"
     result_dir = os.path.dirname(result_path)
     os.makedirs(result_dir, exist_ok=True)
     
@@ -338,7 +338,7 @@ if __name__ == "__main__":
         img_dir = os.path.dirname(ss_path)
         os.makedirs(img_dir, exist_ok=True)
         
-        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, plot=False, ss_path=ss_path)
+        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, plot=True, ss_path=ss_path)
         
         if sample_scores is None or event_scores is None:
             continue
