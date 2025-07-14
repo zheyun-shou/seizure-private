@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, confusion_matrix, precision_recall_fscore_support
 import joblib
 import random
+from catch22 import Catch22Classifier
 
 # Import existing utilities
 from new_dataloader import (
@@ -64,9 +65,6 @@ def load_dataset(config):
     train_epochs = create_balanced_epochs(train_events, config)
     test_epochs = create_balanced_epochs(test_events, config)
 
-    # Step 4: Split epochs into train and test
-    print("\nSplitting epochs into train and test...")
-    train_epochs, test_epochs = train_test_epochs_split(epochs, config)
 
     print("\n=== Preprocess Pipeline Completed Successfully! ===")
 
@@ -88,18 +86,22 @@ def train_model(train_epochs, config):
                 print(f"Model loaded from: {data_file}")
                 return model
             else:
-                print(f"Model file not found: {data_file}")
+                print(f"Model file not found, training new model...")
 
     X_train, y_train = load_epoch_data(train_epochs, config, split_name='train')
+    # TODO: save number of different epochs to model yaml
     
     print(f"\n ===== Training Model ===== \n")
 
     torch.cuda.empty_cache()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device: ", device)
-
-    # Detach rocket model
-    model = DetachRocket('pytorch_minirocket', num_kernels=config['num_kernels'], verbose=False, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
+    if config['model_type'] == 'detach_rocket':
+        model = DetachRocket('pytorch_minirocket', num_kernels=config['num_kernels'], verbose=False, device=device) # multivariate; input_shape=(n_samples, n_channels, timestamps)
+    elif config['model_type'] == 'detach_ensemble':
+        model = DetachEnsemble(num_models=config['num_models'], num_kernels=config['num_kernels'], model_type='pytorch_minirocket', verbose=False)
+    elif config['model_type'] == 'catch22':
+        model = Catch22Classifier(random_state=42, n_jobs=-1)
 
     start_training_time = time.time()
     model.fit(X_train, y_train)
@@ -113,7 +115,8 @@ def train_model(train_epochs, config):
         joblib.dump(model, f)
     print(f"Model saved to: {model_path}")
 
-    # save config to the same directory
+    # save model config to the same directory
+    # TODO: we need configuration, number of epochs, performance(terminal output).
     config_path = os.path.join(config['model_dir'], f"{model_name}.yaml")
     with open(config_path, 'w') as f:
         yaml.dump(config, f)
@@ -188,7 +191,7 @@ if __name__ == "__main__":
     # Load configuration
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
-        config['timestamp'] = datetime.now().strftime("%Y%m%d_%H%M%S") # add unique timestamp to the config
+        config['timestamp'] = datetime.now().strftime("%m%d_%H%M%S") # add unique timestamp to the config
         config['dataset'] = config['bids_root'].split('/')[-1]
     os.makedirs(config['preprocessed_dir'], exist_ok=True)
     os.makedirs(config['model_dir'], exist_ok=True)

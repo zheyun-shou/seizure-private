@@ -15,18 +15,20 @@ inference: False # if True, will not train the model, but will load the model an
 # New parameters for balanced epoch creation
 epoch_ratios:
   sz: 2
-  non_seizure: 2
+  interictal: 2
   bckg: 1
-rnd_seed: 40
-split_seed: 42
+sample_seed: 40 #for sampling epochs from each event type
+split_seed: 42 #for train/test split
 
 # model settings
+model_type: 'detach_rocket' # 'detach_rocket' or 'detach_ensemble' or 'catch22'
 model_name: '0626_test'
 load_model: True # if True, will load the model from the model_dir
 save_model: True # if True, will save the model to the model_dir
 
 # detach rocket settings
 num_kernels: 10000
+num_models: 10
 
 # mne / data loader settings
 mne_preload: False

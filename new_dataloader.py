@@ -48,31 +48,42 @@ def get_system_memory_usage():
     except Exception:
         return 0.0
 
-# 
+def is_seizure_event(event_row, config):
+    return any(substring in event_row['eventType'].lower() for substring in config['seizure_event_type'])
+
 def read_all_events(config: dict):
     """
     Gather all events from *_events.tsv files, label intervals as 'sz', 'interictal', or 'bckg',
     and append BIDS ids to each row. Returns a concatenated DataFrame.
     """
     all_rows = []
+    epoch_duration = config['epoch_duration']
+    if not os.path.exists(config['bids_root']):
+        raise FileNotFoundError(f"BIDS root directory not found: {config['bids_root']}")
     for root, _, files in os.walk(config['bids_root']):
         for file in files:
             if file.endswith('_events.tsv'):
                 tsv_path = os.path.join(root, file)
                 ids = extract_bids_ids_from_path(tsv_path)
-                # if data_size is 0.5, only keep odd subject ids
-                if config['data_size'] == 0.5 and int(ids['subject']) % 2 == 0:
-                    continue
                 df = pd.read_csv(tsv_path, sep='\t')
                 # Get recording duration (assume all rows have same value)
                 rec_duration = df['recordingDuration'].iloc[0]
+                # valid check: 
+                # 1. onset should be > 0; otherwise reset to 0;
+                # 2. onset + duration should be <= recordingDuration, otherwise reset to recordingDuration
+                # condition: recording duration should align with recording.last_time
+                df['onset'] = df['onset'].apply(lambda x: 0 if x < 0 else x)
+                df['duration'] = df['duration'].apply(lambda x: rec_duration - df['onset'] if x + df['onset'] > rec_duration else x)
                 # Sort by onset
                 df = df.sort_values('onset').reset_index(drop=True)
                 # If any seizure exists, fill gaps with interictal
-                is_seizure = [any(substring in row["eventType"].lower() for substring in config['seizure_event_type']) for _, row in df.iterrows()]
-                if any(is_seizure):
+                is_seizure = [is_seizure_event(row, config) for _, row in df.iterrows()]
+                if any(is_seizure): #seizure recording
                     intervals = []
                     last_end = 0.0
+                    for i, row in df.iterrows():
+                        df.loc[i, 'onset'] = (row['onset'] // epoch_duration) * epoch_duration
+                        df.loc[i, 'end'] = (row['end'] // epoch_duration + 1) * epoch_duration
                     for i, row in df.iterrows():
                         if row['onset'] > last_end:
                             # gap before this event
@@ -83,6 +94,7 @@ def read_all_events(config: dict):
                                 'eventType': 'interictal',
                                 'recordingDuration': rec_duration
                             })
+                    
                         intervals.append({
                             'onset': row['onset'],
                             'duration': row['duration'],
@@ -91,6 +103,7 @@ def read_all_events(config: dict):
                             'recordingDuration': rec_duration
                         })
                         last_end = row['onset'] + row['duration']
+
                     if last_end < rec_duration:
                         intervals.append({
                             'onset': last_end,
@@ -100,8 +113,8 @@ def read_all_events(config: dict):
                             'recordingDuration': rec_duration
                         })
                     out_df = pd.DataFrame(intervals)
-                else:
-                    # Only bckg: extend bckg to full duration
+                else: #bckg recording
+    
                     out_df = pd.DataFrame([{
                         'onset': 0.0,
                         'duration': rec_duration,
@@ -109,21 +122,23 @@ def read_all_events(config: dict):
                         'eventType': 'bckg',
                         'recordingDuration': rec_duration
                     }])
-                # Add BIDS ids
+
+                # Add ids
                 for k, v in ids.items():
                     out_df[k] = v
                 all_rows.append(out_df)
+
     if all_rows:
         result = pd.concat(all_rows, ignore_index=True)
         # check for each subject if there is at least one seizure recording, and append the bool value to the result
         unique_subjects = result['subject'].unique()
         seizure_subjects = []
         for subject in unique_subjects:
-            event_in_subject_idx = result['subject'] == subject
+            event_in_subject_idx = (result['subject'] == subject)
             subject_df = result[event_in_subject_idx]
             is_seizure_subject = False
             for _, row in subject_df.iterrows():
-                if any(substring in row['eventType'].lower() for substring in config['seizure_event_type']):
+                if is_seizure_event(row, config):
                     is_seizure_subject = True
                     seizure_subjects.append(subject)
                     break
@@ -136,119 +151,74 @@ def read_all_events(config: dict):
     else:
         return pd.DataFrame()
 
-def create_balanced_epochs(df, config, min_duration_threshold=0.1):
+def create_balanced_epochs(df, config):
     """
     Create balanced fixed-length epochs from labeled events.
     
     Args:
         df: DataFrame with labeled events (output from read_all_events)
         config: Configuration dictionary
-        min_duration_threshold: Minimum extra duration required to sample an epoch (default 0.1s)
         
     Returns:
         tuple: (list of epoch dictionaries, statistics dictionary)
     """
     epoch_duration = config['epoch_duration']
     ratios = config['epoch_ratios']
-    random_seed = config['rnd_seed']
+    
     debug = config['debug']
 
-    random.seed(random_seed)
-    
-    # Calculate total durations
-    total_durations = df.groupby('eventType')['duration'].sum().to_dict()
-    if debug:
-        print(f"Total durations: {total_durations}")
-    
-    # Calculate how many epochs can be extracted from each event type
-    available_epochs_per_type = {}
-    for event_type, total_dur in total_durations.items():
-        # Only count intervals that are long enough for at least one epoch
-        valid_intervals = df[(df['eventType'] == event_type) & 
-                           (df['duration'] >= epoch_duration + min_duration_threshold)]
+    epoch_dfs = []
+    for i, row in df.iterrows():
+        # rules for creating epoch dataframes:
+        # 1. all the epochs are aligned to the start of the recording, with the duration of epoch_duration
+        # 2. for is_seizure_event = True, we do over-estimation, i.e. contain the epoch if any time point is in the seizure event
+        # 3. for eventType = non_seizure, we only sample within the interval & aligned with n times of epoch_duration
+        # left align & seizure events close to each other with less than epoch_duration will be merged into one event
+        epoch_slices = np.arange(row['onset'], row['end'] + 1e-6, epoch_duration)
+        epoch_start_times = epoch_slices[:-1]
+        epoch_end_times = epoch_slices[1:]
+        # if is_seizure_event(row, config):
+        #     if epoch_slices[-1] > row['end'] and epoch_slices[-1] + epoch_duration < row['recordingDuration']:
+        #         epoch_start_times = np.concatenate([epoch_start_times, [epoch_slices[-1]]])
+        #         epoch_end_times = np.concatenate([epoch_end_times, [epoch_slices[-1] + epoch_duration]])
+        #     if epoch_slices[0] < row['onset'] and epoch_slices[0] - epoch_duration > 0:
+        #         epoch_start_times = np.concatenate([[epoch_slices[0] - epoch_duration], epoch_start_times])
+                # epoch_end_times = np.concatenate([[epoch_slices[0]], epoch_end_times])
         
-        # Calculate total possible epochs from all valid intervals
-        total_possible_epochs = 0
-        for _, interval in valid_intervals.iterrows():
-            # How many epochs can fit in this interval
-            epochs_in_interval = int((interval['duration'] - min_duration_threshold) // epoch_duration)
-            total_possible_epochs += epochs_in_interval
-        # TODO: 绝对时间
-        available_epochs_per_type[event_type] = total_possible_epochs
-    
+        # create a epoch dataframe with the start and end times
+        epoch_df = pd.DataFrame({
+            'onset': epoch_start_times,
+            'duration': epoch_duration,
+            'end': epoch_end_times,
+            'eventType': row['eventType'],
+            'subject': row['subject'],
+            'session': row['session'],
+            'task': row['task'],
+            'run': row['run'],
+            'recordingDuration': row['recordingDuration'],
+            'is_seizure_subject': row['is_seizure_subject']
+        })
+        epoch_dfs.append(epoch_df)
+    all_epoch_df = pd.concat(epoch_dfs, ignore_index=True)
+    # Calculate total durations
+    durations_by_type = all_epoch_df.groupby('eventType')['duration'].sum().to_dict()
+    ref_type = 'sz'
+    num_epochs_by_type = {k: int(ratios[k] / ratios[ref_type] * durations_by_type[ref_type]) for k, v in durations_by_type.items()}
     if debug:
-        print(f"Available epochs per type: {available_epochs_per_type}")
+        print(f"Total durations: {durations_by_type}")
+        print(f"Total epochs: {num_epochs_by_type}")
     
-    # Determine target number of epochs based on ratios
-    # Use the minimum available as reference to avoid oversampling
-    reference_type = 'sz'  # Use seizure ("sz") as reference
-    if reference_type not in available_epochs_per_type or available_epochs_per_type[reference_type] == 0:
-        if debug:
-            print(f"Warning: No {reference_type} events found. Using first available type as reference.")
-        reference_type = next(iter(available_epochs_per_type.keys()))
-    
-    max_possible_epochs = available_epochs_per_type[reference_type]
     # TODO：data ratio: e.g. 50%, 80%, subject-wise 
-    target_epochs = {}
-    
-    for event_type, ratio in ratios.items():
-        if event_type in available_epochs_per_type:
-            target_epochs[event_type] = min(
-                int(max_possible_epochs * ratio / ratios[reference_type]),
-                available_epochs_per_type[event_type]
-            )
-        else:
-            target_epochs[event_type] = 0
-    
-    if debug:
-        print(f"Target epochs per type: {target_epochs}")
     
     # Sample epochs from each event type
     all_epochs = []
-    
-    for event_type, target_count in target_epochs.items():
-        if target_count == 0:
-            continue
-            
-        # Get intervals for this event type that are long enough
-        event_intervals = df[(df['eventType'] == event_type) & 
-                           (df['duration'] >= epoch_duration + min_duration_threshold)].copy()
-        
-        if len(event_intervals) == 0:
-            continue
-        
-        # Create all possible epochs from all intervals
-        all_possible_epochs = []
-        for _, interval in event_intervals.iterrows():
-            # Calculate how many epochs can fit in this interval
-            max_epochs_in_interval = int((interval['duration'] - min_duration_threshold) // epoch_duration)
-            
-            for i in range(max_epochs_in_interval):
-                start_time = interval['onset'] + i * epoch_duration
-                end_time = start_time + epoch_duration
-                
-                epoch = {
-                    'onset': start_time,
-                    'duration': epoch_duration,
-                    'end': end_time,
-                    'eventType': event_type,#sz, interictal, bckg
-                    'subject': interval['subject'],
-                    'session': interval['session'],
-                    'task': interval['task'],
-                    'run': interval['run'],
-                    'recordingDuration': interval['recordingDuration']
-                }
-                all_possible_epochs.append(epoch)
-        
-        # Randomly sample the target number of epochs
-        if len(all_possible_epochs) <= target_count:
-            # Sample with replacement if needed
-            sampled_epochs = random.choices(all_possible_epochs, k=target_count)
-        else:
-            # Sample without replacement
-            sampled_epochs = random.sample(all_possible_epochs, target_count)
-        
-        all_epochs.extend(sampled_epochs)
+
+    # random sample the epochs from each event type
+    for event_type, num_epochs in num_epochs_by_type.items():
+        event_type_epochs = all_epoch_df[all_epoch_df['eventType'] == event_type]
+        event_type_epochs = event_type_epochs.sample(n=num_epochs, random_state=config['sample_seed'])
+        all_epochs.append(event_type_epochs)
+    all_epochs = pd.concat(all_epochs, ignore_index=True)
     
     return all_epochs
 
@@ -308,7 +278,7 @@ def load_multi_epochs_from_recording(recording_data):
                 
                 # Assign the label to the epoch
                 epoch_x = data
-                epoch_y = 1 if any(substring in epoch['eventType'].lower() for substring in config['seizure_event_type']) else 0
+                epoch_y = 1 if is_seizure_event(epoch, config) else 0
                 
                 results.append((epoch_x, epoch_y))
                 
@@ -444,7 +414,7 @@ def load_epoch_data(epochs, config, split_name):
                 
                 # assign the label to the epoch
                 epoch_x = data
-                epoch_y = 1 if epoch['eventType'] == 'seizure' else 0
+                epoch_y = 1 if epoch['eventType'] == 'sz' else 0
                 X.append(epoch_x)
                 y.append(epoch_y)
                 
@@ -671,8 +641,7 @@ def load_all_epochs_from_recording(recording_data):
             is_seizure_epoch = 0
             for i, info in rec_event.iterrows():
                 # if the epoch has overlap with seizure, label it as seizure
-                is_seizure_event = any(substring in info["eventType"].lower() for substring in config['seizure_event_type'])
-                if is_seizure_event and (t_end > info["onset"]) and (t_start < info["onset"] + info["duration"]): 
+                if is_seizure_event(info, config) and (t_end > info["onset"]) and (t_start < info["onset"] + info["duration"]): 
                     is_seizure_epoch = 1
                     break
             labels.append(is_seizure_epoch)
