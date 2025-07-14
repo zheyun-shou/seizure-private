@@ -10,3 +10,7 @@
 /figures/
 *.xlsx
 *.csv
+*.pkl
+*.npz
+*.pt
+*.npy

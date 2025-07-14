@@ -206,6 +206,8 @@ if __name__ == "__main__":
     BIDS_ROOT = 'F:\BIDS_TUSZ'  # Replace with your actual path
     # calcutale how many seizure recordings a subject has, print the subject_id and sz_count for each subject
     sz_count = {}
+    bckg_count = {}
+    seizure_subject=0
     for root, dirs, files in os.walk(BIDS_ROOT):
         for file in files:
             if file.endswith(".edf"):
@@ -220,26 +222,46 @@ if __name__ == "__main__":
                     raise ValueError(f"One or more of the required columns {required_columns} not found in the file.")
                 
                 subject_id = base.split("_")[0]
+                
                 # Count the number of seizure recordings for this subject, not the number of seizures
 
                 if subject_id not in sz_count:
                     sz_count[subject_id] = 0
                 if "sz" in events_df["eventType"].values:
                     sz_count[subject_id] += 1
+            
+                if subject_id not in bckg_count:
+                    bckg_count[subject_id] = 0
+                if "bckg" in events_df["eventType"].values:
+                    bckg_count[subject_id] += 1
+                
+    for subject_id, count in sz_count.items():
+        if count > 0:
+            seizure_subject += 1
+
                 
     # for subject_id, count in sz_count.items():
     #     print(f"Subject ID: {subject_id}, Seizure Count: {count}")
         
     # print the distribution of seizure counts as a figure, use bin size of 5
     sz_counts = list(sz_count.values())
+    # print number of subjects with seizure recording
+    print(f"Number of subjects with seizure recording: {seizure_subject}")
     plt.figure(figsize=(10, 6))
     plt.hist(sz_counts, bins=range(0, max(sz_counts) + 5, 5), color='skyblue', edgecolor='black')
     plt.title('Distribution of Seizure Recordings per Subject', fontsize=16)
     plt.xlabel('Number of Seizure Recordings', fontsize=14)
     plt.ylabel('Number of Subjects', fontsize=14)
+
     
     plt.xticks(range(0, max(sz_counts) + 5, 5))
     plt.grid(axis='y', alpha=0.75)  
     plt.tight_layout()
     
     plt.show()
+    
+    # print the total number of seizure recordings and background recordings
+    total_sz_recordings = sum(sz_count.values())
+    total_bckg_recordings = sum(bckg_count.values())
+    print(f"Total Seizure Recordings: {total_sz_recordings}")
+    print(f"Total Background Recordings: {total_bckg_recordings}")

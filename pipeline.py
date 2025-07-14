@@ -23,6 +23,7 @@ import random
 from evaluate import evaluate_recording, append_notnan_and_count_nan
 from sktime.classification.feature_based import Catch22Classifier
 
+
 def subject_wise_split(segments, train_ratio=0.8, return_ids=False):
     # use np.unique to get the unique subjects
     subjects = np.concatenate([s['subject'] for s in segments]) #array

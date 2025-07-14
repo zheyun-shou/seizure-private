@@ -303,6 +303,7 @@ if __name__ == "__main__":
     
     test_ids = []
     for root, dirs, files in os.walk(bids_root):
+        files.sort()
         for file in files:
             if file.endswith('.edf'):
                 subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
