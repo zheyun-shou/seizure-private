@@ -16,7 +16,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, confusion_matrix, precision_recall_fscore_support
 import joblib
 import random
-from catch22 import Catch22Classifier
+from sktime.classification.feature_based import Catch22Classifier
 
 # Import existing utilities
 from new_dataloader import (
