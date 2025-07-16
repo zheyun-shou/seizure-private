@@ -61,6 +61,7 @@ def read_all_events(config: dict):
     if not os.path.exists(config['bids_root']):
         raise FileNotFoundError(f"BIDS root directory not found: {config['bids_root']}")
     for root, _, files in os.walk(config['bids_root']):
+        files.sort()
         for file in files:
             if file.endswith('_events.tsv'):
                 tsv_path = os.path.join(root, file)
@@ -73,7 +74,7 @@ def read_all_events(config: dict):
                 # 2. onset + duration should be <= recordingDuration, otherwise reset to recordingDuration
                 # condition: recording duration should align with recording.last_time
                 df['onset'] = df['onset'].apply(lambda x: 0 if x < 0 else x)
-                df['duration'] = df['duration'].apply(lambda x: rec_duration - df['onset'] if x + df['onset'] > rec_duration else x)
+                df['duration'] = df.apply(lambda row: rec_duration - row['onset'] if row['duration'] + row['onset'] > rec_duration else row['duration'], axis=1)
                 # Sort by onset
                 df = df.sort_values('onset').reset_index(drop=True)
                 # If any seizure exists, fill gaps with interictal
@@ -82,8 +83,12 @@ def read_all_events(config: dict):
                     intervals = []
                     last_end = 0.0
                     for i, row in df.iterrows():
-                        df.loc[i, 'onset'] = (row['onset'] // epoch_duration) * epoch_duration
-                        df.loc[i, 'end'] = (row['end'] // epoch_duration + 1) * epoch_duration
+                        extended_onset = (row['onset'] // epoch_duration) * epoch_duration
+                        extended_end = np.ceil((row['onset'] + row['duration']) / epoch_duration) * epoch_duration
+                        df.loc[i, 'onset'] = extended_onset
+                        df.loc[i, 'end'] = extended_end if extended_end <= rec_duration else extended_end - epoch_duration
+                        df.loc[i, 'duration'] = df.loc[i, 'end'] - df.loc[i, 'onset']
+
                     for i, row in df.iterrows():
                         if row['onset'] > last_end:
                             # gap before this event
@@ -147,6 +152,7 @@ def read_all_events(config: dict):
         bckg_subjects = [subject for subject in unique_subjects if subject not in seizure_subjects]
         print(f"Number of seizure subjects: {len(seizure_subjects)}")
         print(f"Number of bckg subjects: {len(bckg_subjects)}")
+        result = result.drop_duplicates()
         return result, (seizure_subjects, bckg_subjects)
     else:
         return pd.DataFrame()
@@ -164,8 +170,9 @@ def create_balanced_epochs(df, config):
     """
     epoch_duration = config['epoch_duration']
     ratios = config['epoch_ratios']
-    
     debug = config['debug']
+
+    print(df["duration"].sum())
 
     epoch_dfs = []
     for i, row in df.iterrows():
@@ -202,8 +209,8 @@ def create_balanced_epochs(df, config):
     all_epoch_df = pd.concat(epoch_dfs, ignore_index=True)
     # Calculate total durations
     durations_by_type = all_epoch_df.groupby('eventType')['duration'].sum().to_dict()
-    ref_type = 'sz'
-    num_epochs_by_type = {k: int(ratios[k] / ratios[ref_type] * durations_by_type[ref_type]) for k, v in durations_by_type.items()}
+    ref_type = min(durations_by_type, key=durations_by_type.get)
+    num_epochs_by_type = {k: int(ratios[k] / ratios[ref_type] * durations_by_type[ref_type] / epoch_duration) for k, v in durations_by_type.items()}
     if debug:
         print(f"Total durations: {durations_by_type}")
         print(f"Total epochs: {num_epochs_by_type}")
@@ -216,11 +223,13 @@ def create_balanced_epochs(df, config):
     # random sample the epochs from each event type
     for event_type, num_epochs in num_epochs_by_type.items():
         event_type_epochs = all_epoch_df[all_epoch_df['eventType'] == event_type]
-        event_type_epochs = event_type_epochs.sample(n=num_epochs, random_state=config['sample_seed'])
+        event_type_epochs = event_type_epochs.sample(n=num_epochs, random_state=config['sample_seed'], replace=True)
         all_epochs.append(event_type_epochs)
     all_epochs = pd.concat(all_epochs, ignore_index=True)
-    
-    return all_epochs
+
+    # keep only unique epochs
+    all_epochs = all_epochs.drop_duplicates()
+    return all_epochs.to_dict(orient='records') 
 
 def load_multi_epochs_from_recording(recording_data):
     """
@@ -321,7 +330,10 @@ def find_matching_config(config, dir):
                 config_from_file['epoch_duration'] == config['epoch_duration'] and \
                 config_from_file['downsample'] == config['downsample'] and \
                 config_from_file['epoch_ratios'] == config['epoch_ratios'] and \
-                config_from_file['rnd_seed'] == config['rnd_seed']:
+                config_from_file['sample_seed'] == config['sample_seed'] and \
+                config_from_file['split_seed'] == config['split_seed'] and \
+                config_from_file['num_kernels'] == config['num_kernels'] and \
+                config_from_file['num_models'] == config['num_models']:
                 print(f"Found matching config file: {config_file}")
                 return config_from_file
     return None

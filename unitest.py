@@ -208,6 +208,7 @@ if __name__ == "__main__":
     sz_count = {}
     bckg_count = {}
     seizure_subject=0
+    sz_duration = 0
     for root, dirs, files in os.walk(BIDS_ROOT):
         for file in files:
             if file.endswith(".edf"):
@@ -222,7 +223,7 @@ if __name__ == "__main__":
                     raise ValueError(f"One or more of the required columns {required_columns} not found in the file.")
                 
                 subject_id = base.split("_")[0]
-                
+                sz_duration += events_df[events_df["eventType"] == "sz"]["duration"].sum()
                 # Count the number of seizure recordings for this subject, not the number of seizures
 
                 if subject_id not in sz_count:
@@ -247,6 +248,7 @@ if __name__ == "__main__":
     sz_counts = list(sz_count.values())
     # print number of subjects with seizure recording
     print(f"Number of subjects with seizure recording: {seizure_subject}")
+    print(f"Total seizure duration: {sz_duration}")
     plt.figure(figsize=(10, 6))
     plt.hist(sz_counts, bins=range(0, max(sz_counts) + 5, 5), color='skyblue', edgecolor='black')
     plt.title('Distribution of Seizure Recordings per Subject', fontsize=16)
@@ -265,3 +267,5 @@ if __name__ == "__main__":
     total_bckg_recordings = sum(bckg_count.values())
     print(f"Total Seizure Recordings: {total_sz_recordings}")
     print(f"Total Background Recordings: {total_bckg_recordings}")
+
+    

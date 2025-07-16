@@ -47,6 +47,8 @@ def load_dataset(config):
     train_bckg_subjects, test_bckg_subjects = train_test_split(bckg_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
     train_subjects = train_seizure_subjects + train_bckg_subjects
     test_subjects = test_seizure_subjects + test_bckg_subjects
+    print(f"Train subjects: {len(train_subjects)}")
+    print(f"Test subjects: {len(test_subjects)}")
     # train events are all events from train subjects
     train_events = all_events[all_events['subject'].isin(train_subjects)]
     # test events are all events from test subjects
@@ -61,8 +63,10 @@ def load_dataset(config):
         print(f"Total events loaded: {len(all_events)}")
     
     # Step 3: Create balanced epochs
-    print("\nCreating balanced epochs...")
+    
+    print(f"Creating balanced epochs for train set...")
     train_epochs = create_balanced_epochs(train_events, config)
+    print(f"Creating balanced epochs for test set...")
     test_epochs = create_balanced_epochs(test_events, config)
 
 
@@ -129,7 +133,7 @@ def train_model(train_epochs, config):
 def test_model(model, test_epochs, config):
     """Evaluate the model."""
     X_test, y_test = load_epoch_data(test_epochs, config, split_name='test')
-    print(f"\n ===== Evaluating Model ===== \n")
+    print(f"\n ===== Evaluating Model on test set ===== \n")
 
     # evaluate the model
     y_pred = model.predict(X_test)
