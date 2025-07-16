@@ -54,7 +54,6 @@ def load_dataset(config):
     # test events are all events from test subjects
     test_events = all_events[all_events['subject'].isin(test_subjects)]
 
-    
     if config.get('debug', False):
         print("\nReading and labeling events...")
         if all_events.empty:

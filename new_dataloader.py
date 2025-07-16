@@ -210,7 +210,7 @@ def create_balanced_epochs(df, config):
     # Calculate total durations
     durations_by_type = all_epoch_df.groupby('eventType')['duration'].sum().to_dict()
     ref_type = min(durations_by_type, key=durations_by_type.get)
-    num_epochs_by_type = {k: int(ratios[k] / ratios[ref_type] * durations_by_type[ref_type] / epoch_duration) for k, v in durations_by_type.items()}
+    num_epochs_by_type = {k: int(ratios[k] / ratios[ref_type] * durations_by_type[ref_type] / epoch_duration * config['data_size']) for k, v in durations_by_type.items()}
     if debug:
         print(f"Total durations: {durations_by_type}")
         print(f"Total epochs: {num_epochs_by_type}")
@@ -265,9 +265,9 @@ def load_multi_epochs_from_recording(recording_data):
             preload=config['mne_preload'], 
             verbose=config['mne_verbose'])
         
-        # Downsample the data once
+        # resample the data to desired sample rate
         edf_raw.resample(
-            sfreq=config['downsample'],
+            sfreq=config['sample_rate'],
             verbose=config['mne_verbose'],
             )
         
@@ -328,7 +328,7 @@ def find_matching_config(config, dir):
             if config_from_file['data_size'] == config['data_size'] and \
                 config_from_file['split_ratio'] == config['split_ratio'] and \
                 config_from_file['epoch_duration'] == config['epoch_duration'] and \
-                config_from_file['downsample'] == config['downsample'] and \
+                config_from_file['sample_rate'] == config['sample_rate'] and \
                 config_from_file['epoch_ratios'] == config['epoch_ratios'] and \
                 config_from_file['sample_seed'] == config['sample_seed'] and \
                 config_from_file['split_seed'] == config['split_seed'] and \
@@ -349,11 +349,6 @@ def load_epoch_data(epochs, config, split_name):
         # 1. scan the preprocessed_dir for config files
         # 2. load the config file
         # 3. check the following terms if they are the same as the config:
-        #    - split_ratio
-        #    - epoch_duration
-        #    - downsample
-        #    - epoch_ratios
-        #    - rnd_seed
         # 4. if all terms are the same, load the preprocessed data
         # 5. if any term is different, load the epochs and preprocess the data
 
@@ -408,9 +403,9 @@ def load_epoch_data(epochs, config, split_name):
                     preload=config['mne_preload'], 
                     verbose=config['mne_verbose'])
                 
-                # downsample the data
+                # resample the data to desired sample rate
                 edf_raw.resample(
-                    sfreq=config['downsample'],
+                    sfreq=config['sample_rate'],
                     verbose=config['mne_verbose'],
                     )
                 
@@ -626,11 +621,11 @@ def load_all_epochs_from_recording(recording_data):
             preload=config['mne_preload'], 
             verbose=config['mne_verbose'])
         
-        fs = edf_raw.info["sfreq"] / config['downsample']
+        fs = config['sample_rate']
         
-        # Downsample the data once
+        # resample the data to desired sample rate
         edf_raw.resample(
-            sfreq=config['downsample'],
+            sfreq=config['sample_rate'],
             verbose=config['mne_verbose'],
             )
         
