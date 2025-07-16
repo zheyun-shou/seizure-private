@@ -333,7 +333,8 @@ def find_matching_config(config, dir):
                 config_from_file['sample_seed'] == config['sample_seed'] and \
                 config_from_file['split_seed'] == config['split_seed'] and \
                 config_from_file['num_kernels'] == config['num_kernels'] and \
-                config_from_file['num_models'] == config['num_models']:
+                config_from_file['num_models'] == config['num_models'] and \
+                config_from_file['model_type'] == config['model_type']:
                 print(f"Found matching config file: {config_file}")
                 return config_from_file
     return None
@@ -596,9 +597,6 @@ def train_test_epochs_split(epochs, config):
     train_epochs = train_epochs.drop('recording_key', axis=1)
     test_epochs = test_epochs.drop('recording_key', axis=1)
 
-    # convert to list of dictionaries
-    train_epochs = train_epochs.to_dict(orient='records')
-    test_epochs = test_epochs.to_dict(orient='records')
     
     print(f"Train epochs: {len(train_epochs)}, Test epochs: {len(test_epochs)}")
     
@@ -816,7 +814,7 @@ def analyze_recording_performance(recording_results, model_predictions):
         from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
         
         precision, recall, f1, support = precision_recall_fscore_support(
-            true_labels, pred_labels, average='binary', zero_division=0
+            true_labels, pred_labels, average='binary', zero_division='0'
         )
         
         tn, fp, fn, tp = confusion_matrix(true_labels, pred_labels).ravel()

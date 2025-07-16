@@ -14,7 +14,7 @@ inference: False # if True, will not train the model, but will load the model an
 
 # New parameters for balanced epoch creation
 epoch_ratios:
-  sz: 2
+  sz: 8        # Increased from 2 to give seizures much more weight
   interictal: 2
   bckg: 1
 sample_seed: 40 #for sampling epochs from each event type
