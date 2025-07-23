@@ -4,6 +4,7 @@ import time
 import math
 import random
 import joblib
+import yaml
 
 # Data processing and visualization
 import numpy as np
@@ -12,6 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 from matplotlib.axes import Axes
 import colorsys
+import logging
+logger = logging.getLogger(__name__)
 
 # Machine learning & classification
 from sklearn import svm
@@ -44,15 +47,11 @@ from dataloader import (
     get_data_from_epochs,
     read_ids_from_bids
 )
-from wavelet_utils import wavelet_decompose_channels_from_segment
-from custom_utils import (
-    get_feature_matrix,
-    get_labels_from_info,
-    plot_confusion_matrix,
-    print_confusion_matrix
-)
+
 from detach_rocket.detach_classes import DetachRocket, DetachEnsemble
 from analysis import Analyzer
+from new_dataloader import read_all_events
+from new_analysis import analyze_classification
 
 # Scoring utilities
 from timescoring.annotations import Annotation
@@ -147,16 +146,21 @@ def append_notnan_and_count_nan(value, lst, counter):
     return counter
 
 if __name__ == "__main__":
+    config_file = './models/en_0716_234323.yaml'
+    with open(config_file, 'r') as f: #read config file
+        config = yaml.safe_load(f)
+    dataset = "TUSZ"
+    model_name = '{}.pkl'.format(config_file.split('.')[0]) # "Siena" or "TUSZ"
     
-    dataset = "TUSZ" # "Siena" or "TUSZ"
-    bids_root = f'F:\BIDS_{dataset}' # Replace with your actual path
-    threshold = 0.5
-    train_size = 0.8
-    rnd_seed = 41
-    epoch_duration = 10 # in seconds
-    data_size = 0.5
-    model_name = '0528_de_mini_seed41' 
-
+    log_path = os.path.join(config['model_dir'], model_name,'eval',dataset)
+    logging.basicConfig(filename=log_path, level=logging.INFO)
+    
+    bids_root = config['bids_root'] # Replace with your actual path
+    threshold = config['threshold']
+    train_size = config['split_ratio']
+    split_seed = config['split_seed']
+    epoch_duration = config['epoch_duration'] # in seconds
+    data_size = config['data_size']
     
     subject_ids = []
     for root, dirs, files in os.walk(bids_root):
@@ -168,62 +172,22 @@ if __name__ == "__main__":
     subject_ids = np.unique(subject_ids)
     
     if dataset == "TUSZ":
+        all_events, (seizure_subjects, bckg_subjects) = read_all_events(config)
         
-        # only keep odd subject ids, data_size=0.5, only in TUSZ
-        # if data_size == 0.5:
-        #     subject_ids = [s for s in subject_ids if int(s) % 2 == 1]
-        random.seed(rnd_seed)
-        random.shuffle(subject_ids)
-        subject_ids = subject_ids[:int(len(subject_ids) * data_size)] 
-            
-        train_subject_idx, test_subject_idx = train_test_split(subject_ids, train_size=train_size, random_state=42)
-        # train_segments, train_epoch_numbers_df = read_dataset(bids_root, epoch_duration, train_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
-        # test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, test_subject_idx, data_size=data_size, max_workers=2) # set max_workers to 1 for debugging
+        train_seizure_subjects, test_seizure_subjects = train_test_split(seizure_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+        train_bckg_subjects, test_bckg_subjects = train_test_split(bckg_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+        train_subjects = train_seizure_subjects + train_bckg_subjects
+        test_subjects = test_seizure_subjects + test_bckg_subjects
+        train_subject_idx = train_subjects
+        test_subject_idx = test_subjects
         
-        
-        # print(f"Train subjects: {train_subject_idx}")
-        # print(f"Test subjects: {test_subject_idx}")
-        
-        # X_train = np.concatenate([s['epoch'] for s in train_segments]).astype(np.float32)
-        # y_train = np.concatenate([s['label'] for s in train_segments]).astype(int)
-        # X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
-        # y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
-        
-        # del train_segments, test_segments
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("cuda available: ", torch.cuda.is_available())
         print("device: ", device)
         
-        model_path = 'D:/seizure/models/' + model_name + '.pkl'
+        model_path = os.path.join(config['model_dir'], model_name)
         model = joblib.load(model_path)
-        
-        # start_model_time = time.time()
-        
-        # # model prediction on test set
-        # predictions = model.predict_proba(X_test)
-        # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
-        
-        # y_pred = model.label_encoder.inverse_transform(yp)
-        # y_pred = model.predict(X_test)
-        
-        # analyzer = Analyzer(print_conf_mat=True)
-        # analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
-        # accuracy = np.mean(y_pred == y_test)
-        # print(f"Epoch-wise model accuracy on TUSZ, test set: {accuracy:.2f}")
-        
-        # # prediction on train set, for overfitting check
-        # predictions_train = model.predict_proba(X_train)
-        # yp_train = (predictions_train[:, 1] > threshold).astype(int) # threshold = 0.5
-        # y_pred_train = model.label_encoder.inverse_transform(yp_train)
-        
-        # analyzer_train = Analyzer(print_conf_mat=True)
-        # analyzer_train.analyze_classification(y_pred_train, y_train, ['normal', 'seizure'])
-        # accuracy_train = np.mean(y_pred_train == y_train)
-        # print(f"Epoch-wise model accuracy on TUSZ, train set: {accuracy_train:.2f}")
-        
-        # end_model_time = time.time()
-        # print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
     
     if dataset == "Siena":
         data_size = 1
@@ -239,8 +203,11 @@ if __name__ == "__main__":
         print("cuda available: ", torch.cuda.is_available())
         print("device: ", device)
         
-        model_path = 'D:/seizure/models/' + model_name + '.pkl'
-        model = joblib.load(model_path)
+        model_path = os.path.join(config['model_dir'], model_name)
+        if os.path.exists(model_path):
+                with open(model_path, 'rb') as f:
+                    model = joblib.load(f)
+                print(f"Model loaded from: {model_path}")
         
         start_model_time = time.time()
         
@@ -251,12 +218,8 @@ if __name__ == "__main__":
         # y_pred = model.label_encoder.inverse_transform(yp)
         y_pred = model.predict(X_test)
         
-        analyzer = Analyzer(print_conf_mat=True)
-        analyzer.analyze_classification(y_pred, y_test, ['normal', 'seizure'])
-        accuracy = np.mean(y_pred == y_test)
-        print(f"Epoch-wise model accuracy on Siena: {accuracy:.2f}")
+        f1, precision, recall, accuracy, conf_mat, conf_mat_norm = analyze_classification(y_pred, y_test)
         
-        del X_test, y_test
         end_model_time = time.time()
     
     if dataset == "test":
@@ -279,7 +242,7 @@ if __name__ == "__main__":
         
         device = torch.device("cuda")
         # device = torch.device("cpu")
-        model_path = 'D:/seizure/models/' + model_name + '.pkl'
+        model_path = os.path.join(config['model_dir'], model_name)
         model = joblib.load(model_path)
         
         start_model_time = time.time()
@@ -297,8 +260,8 @@ if __name__ == "__main__":
     
     subject_id_list = []
     bckg_counter,seiz_counter = 0, 0
-    result_path = f"D:/seizure/results/{model_name}_{dataset}/results.csv"
-    result_dir = os.path.dirname(result_path)
+    result_path = os.path.join(config['result_dir'], f"{model_name}_{dataset}_results.csv")
+    result_dir = config['result_dir']
     os.makedirs(result_dir, exist_ok=True)
     
     test_ids = []
@@ -319,11 +282,6 @@ if __name__ == "__main__":
         tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format = 'tsv')
         test_events_df = pd.read_csv(tsv_path, sep='\t')
                 
-        # for i, row in test_events_df.iterrows():
-        #     if row["eventType"] == "bckg":
-        #         bckg_counter += 1
-        #     elif "sz" in row["eventType"]:
-        #         seiz_counter += 1
         if "bckg" in test_events_df["eventType"].values:
             bckg_counter += 1
         if test_events_df["eventType"].str.contains("sz").any():
@@ -333,8 +291,13 @@ if __name__ == "__main__":
         session_id = ids['session_id']
         task_id = ids['task_id']
         run_id = ids['run_id']
+        
     
-        ss_path = f"D:/seizure/results/{model_name}_{dataset}/{dataset}_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}.png"
+        ss_path = os.path.join(
+            config['result_dir'],
+            f"{model_name}_{dataset}",
+            f"{dataset}_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}.png"
+        )
         
         img_dir = os.path.dirname(ss_path)
         os.makedirs(img_dir, exist_ok=True)

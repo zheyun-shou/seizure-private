@@ -1,0 +1,37 @@
+2025-07-24 01:40:16,740 - STDOUT: === Preprocess Pipeline with Balanced Epochs ===
+2025-07-24 01:40:31,182 - STDOUT: Number of seizure subjects: 222
+2025-07-24 01:40:31,182 - STDOUT: Number of bckg subjects: 238
+2025-07-24 01:40:31,205 - STDOUT: Train subjects: 367
+2025-07-24 01:40:31,205 - STDOUT: Test subjects: 93
+2025-07-24 01:40:31,208 - STDOUT: Reading and labeling events...
+2025-07-24 01:40:31,209 - STDOUT: Total events loaded: 11416
+2025-07-24 01:40:31,209 - STDOUT: Creating balanced epochs for train set...
+2025-07-24 01:40:31,209 - STDOUT: 2934964.0
+2025-07-24 01:40:33,893 - STDOUT: Total durations: {'bckg': 2168650, 'interictal': 563110, 'sz': 192610}
+2025-07-24 01:40:33,893 - STDOUT: Total epochs: {'bckg': 963, 'interictal': 1926, 'sz': 1926}
+2025-07-24 01:40:33,990 - STDOUT: Creating balanced epochs for test set...
+2025-07-24 01:40:33,990 - STDOUT: 1254876.0
+2025-07-24 01:40:34,795 - STDOUT: Total durations: {'bckg': 996600, 'interictal': 199960, 'sz': 55210}
+2025-07-24 01:40:34,795 - STDOUT: Total epochs: {'bckg': 276, 'interictal': 552, 'sz': 552}
+2025-07-24 01:40:34,832 - STDOUT: === Preprocess Pipeline Completed Successfully! ===
+2025-07-24 01:40:34,836 - STDOUT: Found matching config file: test_0724_001701.yaml
+2025-07-24 01:40:34,836 - STDOUT: Found existing model. Loading model...
+2025-07-24 01:40:35,111 - STDOUT: Model loaded from: ./models\test_0724_001701.pkl
+2025-07-24 01:40:35,111 - STDOUT: ===== Training Model Loaded =====
+2025-07-24 01:40:35,114 - STDOUT: Found matching config file: config_0724_001701.yaml
+2025-07-24 01:40:35,114 - STDOUT: Found matching test data...
+2025-07-24 01:40:35,114 - STDOUT: Loading test data...
+2025-07-24 01:40:35,115 - STDOUT: Loaded test data from: ./preprocessed\data_test_0724_001701.npz
+2025-07-24 01:40:36,028 - STDOUT: ===== Evaluating Model on test set =====
+2025-07-24 01:40:46,595 - STDOUT: Test set size: 1345
+2025-07-24 01:40:46,605 - STDOUT: Epoch-wise model accuracy on test set: 0.75
+2025-07-24 01:40:46,605 - STDOUT: Epoch-wise model f1 score on test set: 0.72
+2025-07-24 01:40:46,606 - STDOUT: Epoch-wise model precision on test set: 0.74
+2025-07-24 01:40:46,606 - STDOUT: Epoch-wise model recall on test set: 0.71
+2025-07-24 01:40:46,607 - STDOUT: Epoch-wise model confusion matrix on test set:
+2025-07-24 01:40:46,607 - STDOUT: [[717, 104],
+	 [236, 288]]
+2025-07-24 01:40:46,608 - STDOUT: Epoch-wise model normalized confusion matrix on test set:
+2025-07-24 01:40:46,608 - STDOUT: [[0.87, 0.13],
+	 [0.45, 0.55]]
+2025-07-24 01:40:46,609 - STDOUT: ===== Evaluating Model Completed =====

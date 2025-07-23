@@ -6,7 +6,7 @@ preprocessed_dir: './preprocessed'
 
 # data settings
 threshold: 0.5 # probability threshold for seizure detection
-data_size: 0.4 # data size for the datase
+data_size: 0.1 # data size for the datase
 split_ratio: 0.8 # train size for train/test split
 epoch_duration: 10 # epoch duration in seconds
 sample_rate: 128 # sample rate for the data in Hz
@@ -23,7 +23,7 @@ split_seed: 42 #for train/test split
 
 # model settings
 model_type: 'detach_rocket' # 'detach_rocket' or 'detach_ensemble' or 'catch22'
-model_name: '0626_test'
+model_name: 'test'
 load_model: True # if True, will load the model from the model_dir
 save_model: True # if True, will save the model to the model_dir
 

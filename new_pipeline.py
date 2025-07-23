@@ -17,6 +17,9 @@ from sklearn.metrics import f1_score, confusion_matrix, precision_recall_fscore_
 import joblib
 import random
 from sktime.classification.feature_based import Catch22Classifier
+import sys
+import logging
+
 
 # Import existing utilities
 from new_dataloader import (
@@ -26,10 +29,12 @@ from new_dataloader import (
     create_balanced_epochs,
     train_test_epochs_split, 
     find_matching_config,
+    is_seizure_event
 )
 from new_analysis import analyze_classification, timescoring_analysis
 from mne_utils import setup_mne_for_processing
 from detach_rocket.detach_classes import DetachRocket, DetachEnsemble
+
 
 def load_dataset(config):
     """Load the dataset."""
@@ -78,21 +83,26 @@ def train_model(train_epochs, config):
 
     # check if the config file exists
     if config.get('load_model', False):
-        config_file = find_matching_config(config, config['model_dir'])
-        if config_file is not None:
-            print(f"Loading model...")
-            timestamp = config_file['timestamp']
+        matching_config = find_matching_config(config, config['model_dir'])
+        if matching_config is not None:
+            print(f"Found existing model. Loading model...")
+            timestamp = matching_config['timestamp']
             data_file = os.path.join(config['model_dir'], f'{config["model_name"]}_{timestamp}.pkl')
+            
             if os.path.exists(data_file):
                 with open(data_file, 'rb') as f:
                     model = joblib.load(f)
                 print(f"Model loaded from: {data_file}")
+                print(f"\n ===== Training Model Loaded ===== \n")
+                log_path = os.path.join(config['model_dir'], f'{config["model_name"]}_{timestamp}_log.txt')
+                # os.rename(os.path.join(config['model_dir'], 'temp.txt'), os.path.join(config['model_dir'], f'{config["model_name"]}_{timestamp}_log.txt'))
                 return model
             else:
                 print(f"Model file not found, training new model...")
+        
+    log_path = os.path.join(config['model_dir'], f'{config["model_name"]}_{config["timestamp"]}_log.txt')
 
     X_train, y_train = load_epoch_data(train_epochs, config, split_name='train')
-    # TODO: save number of different epochs to model yaml
     
     print(f"\n ===== Training Model ===== \n")
 
@@ -163,17 +173,10 @@ def evaluate_recording(model, config):
         # do model prediction
         y_pred = model.predict(epoch_data)
 
-        if "bckg" in recording_events["eventType"].values:
-            bckg_counter += 1
-        
-        # Check if any seizure event types are present
-        has_seizure = False
-        for seizure_type in config['seizure_event_type']:
-            if recording_events["eventType"].str.contains(seizure_type, case=False).any():
-                has_seizure = True
-                break
-        if has_seizure:
+        if is_seizure_event(recording_events, config):
             seiz_counter += 1
+        else:
+            bckg_counter += 1
 
         recording_ref_events = [(int(row['onset']), int(row['onset'] + row['duration'])) \
                                 for _, row in recording_events.iterrows() if row['eventType'] != 'bckg']
@@ -189,19 +192,87 @@ def evaluate_recording(model, config):
     print(f"Number of bckg recordings in test set: {bckg_counter}")
     print(f"Number of sz recordings in test set: {seiz_counter}")
 
+class OutputCapture:
+    def __init__(self, filename, also_console=True):
+        self.filename = filename
+        self.also_console = also_console
+        self.original_stdout = sys.stdout
+        self.original_stderr = sys.stderr
+        
+        # Set up file logging
+        logging.basicConfig(
+            filename=filename,
+            level=logging.INFO,
+            format='%(asctime)s - %(message)s',
+            filemode='w'
+        )
+        self.logger = logging.getLogger('output_capture')
+    
+    def write_stdout(self, text):
+        if text.strip():  # Only log non-empty lines
+            self.logger.info(f"STDOUT: {text.strip()}")
+        if self.also_console:
+            self.original_stdout.write(text)
+    
+    def write_stderr(self, text):
+        if text.strip():
+            self.logger.error(f"STDERR: {text.strip()}")
+        if self.also_console:
+            self.original_stderr.write(text)
+    
+    def flush(self):
+        if self.also_console:
+            self.original_stdout.flush()
+            self.original_stderr.flush()
+
+class StdoutCapture:
+    def __init__(self, capture_obj):
+        self.capture = capture_obj
+    def write(self, text):
+        self.capture.write_stdout(text)
+    def flush(self):
+        self.capture.flush()
+
+class StderrCapture:
+    def __init__(self, capture_obj):
+        self.capture = capture_obj
+    def write(self, text):
+        self.capture.write_stderr(text)
+    def flush(self):
+        self.capture.flush()
+
+# Set up output capture at the top of your main file
+log_path = 'temp.txt'
+output_capture = OutputCapture(log_path, also_console=True)
+sys.stdout = StdoutCapture(output_capture)
+sys.stderr = StderrCapture(output_capture)
 
 if __name__ == "__main__":
-    # Load configuration
+    
+    # logger = logging.getLogger(__name__)
+    
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
+
         config['timestamp'] = datetime.now().strftime("%m%d_%H%M%S") # add unique timestamp to the config
+        # log_path = os.path.join(config['model_dir'], 'temp.txt')
+        # logging.basicConfig(filename=log_path, filemode='a', level=logging.INFO)
+
+        
         config['dataset'] = config['bids_root'].split('/')[-1]
+
     os.makedirs(config['preprocessed_dir'], exist_ok=True)
     os.makedirs(config['model_dir'], exist_ok=True)
     os.makedirs(config['result_dir'], exist_ok=True)
+
+    
 
     train_epochs, test_epochs = load_dataset(config)
 
     model = train_model(train_epochs, config)
     test_model(model, test_epochs, config)
     # evaluate_recording(model, config)
+    # close the log file
+    logging.shutdown()
+    os.rename(log_path, os.path.join(config['model_dir'], f'{config["model_name"]}_{config["timestamp"]}_log.txt'))
+

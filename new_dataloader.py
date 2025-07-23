@@ -215,7 +215,7 @@ def create_balanced_epochs(df, config):
         print(f"Total durations: {durations_by_type}")
         print(f"Total epochs: {num_epochs_by_type}")
     
-    # TODO：data ratio: e.g. 50%, 80%, subject-wise 
+    # TODO：reduce the data subject-wise?
     
     # Sample epochs from each event type
     all_epochs = []
@@ -324,19 +324,20 @@ def find_matching_config(config, dir):
     config_files = [f for f in os.listdir(dir) if f.endswith('.yaml')]
     for config_file in config_files:
         with open(os.path.join(dir, config_file), 'r') as f:
-            config_from_file = yaml.safe_load(f)
-            if config_from_file['data_size'] == config['data_size'] and \
-                config_from_file['split_ratio'] == config['split_ratio'] and \
-                config_from_file['epoch_duration'] == config['epoch_duration'] and \
-                config_from_file['sample_rate'] == config['sample_rate'] and \
-                config_from_file['epoch_ratios'] == config['epoch_ratios'] and \
-                config_from_file['sample_seed'] == config['sample_seed'] and \
-                config_from_file['split_seed'] == config['split_seed'] and \
-                config_from_file['num_kernels'] == config['num_kernels'] and \
-                config_from_file['num_models'] == config['num_models'] and \
-                config_from_file['model_type'] == config['model_type']:
+            matching_config = yaml.safe_load(f)
+            if matching_config['data_size'] == config['data_size'] and \
+                matching_config['split_ratio'] == config['split_ratio'] and \
+                matching_config['epoch_duration'] == config['epoch_duration'] and \
+                matching_config['sample_rate'] == config['sample_rate'] and \
+                matching_config['inference'] == config['inference'] and \
+                matching_config['epoch_ratios'] == config['epoch_ratios'] and \
+                matching_config['sample_seed'] == config['sample_seed'] and \
+                matching_config['split_seed'] == config['split_seed'] and \
+                matching_config['num_kernels'] == config['num_kernels'] and \
+                matching_config['num_models'] == config['num_models'] and \
+                matching_config['model_type'] == config['model_type']:
                 print(f"Found matching config file: {config_file}")
-                return config_from_file
+                return matching_config
     return None
 
 def load_epoch_data(epochs, config, split_name):
@@ -352,13 +353,15 @@ def load_epoch_data(epochs, config, split_name):
         # 4. if all terms are the same, load the preprocessed data
         # 5. if any term is different, load the epochs and preprocess the data
 
-        config_from_file = find_matching_config(config, config['preprocessed_dir'])
-        if config_from_file is not None:
-            print(f"Loading preprocessed data...")
-            timestamp = config_from_file['timestamp']
+        matching_config = find_matching_config(config, config['preprocessed_dir'])
+        if matching_config is not None:
+            print(f"Found matching {split_name} data...")
+            print(f"Loading {split_name} data...")
+            timestamp = matching_config['timestamp']
             data_file = os.path.join(config['preprocessed_dir'], f'data_{split_name}_{timestamp}.npz')
             if os.path.exists(data_file):
                 data = np.load(data_file)
+                print(f"Loaded {split_name} data from: {data_file}")
                 return data['X'], data['y']
             else:
                 print(f"Data file not found: {data_file}")
