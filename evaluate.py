@@ -5,7 +5,7 @@ import math
 import random
 import joblib
 import yaml
-
+import sys
 # Data processing and visualization
 import numpy as np
 import pandas as pd
@@ -14,7 +14,6 @@ import matplotlib.colors as mc
 from matplotlib.axes import Axes
 import colorsys
 import logging
-logger = logging.getLogger(__name__)
 
 # Machine learning & classification
 from sklearn import svm
@@ -47,7 +46,7 @@ from dataloader import (
     get_data_from_epochs,
     read_ids_from_bids
 )
-
+from log import OutputCapture, StdoutCapture, StderrCapture
 from detach_rocket.detach_classes import DetachRocket, DetachEnsemble
 from analysis import Analyzer
 from new_dataloader import read_all_events
@@ -57,6 +56,12 @@ from new_analysis import analyze_classification
 from timescoring.annotations import Annotation
 from timescoring import scoring, visualization
 from timescoring.scoring import SampleScoring, EventScoring
+
+log_path = 'temp_eval.txt'
+output_capture = OutputCapture(log_path, also_console=True)
+sys.stdout = StdoutCapture(output_capture)
+sys.stderr = StderrCapture(output_capture)
+
 
 def evaluate_recording(edf_path, tsv_path, model_path, threshold, downsample=2.0, epoch_duration=10, epoch_overlap=0, plot=False, ss_path=None):
 
@@ -145,15 +150,18 @@ def append_notnan_and_count_nan(value, lst, counter):
         lst.append(value)
     return counter
 
+
+
 if __name__ == "__main__":
-    config_file = './models/en_0716_234323.yaml'
+    config_id = 'test_0724_001701'
+    config_file = './models/{}.yaml'.format(config_id)
     with open(config_file, 'r') as f: #read config file
         config = yaml.safe_load(f)
-    dataset = "TUSZ"
-    model_name = '{}.pkl'.format(config_file.split('.')[0]) # "Siena" or "TUSZ"
+    dataset = "TUSZ" # "Siena" or "TUSZ"
+    model_name = '{}.pkl'.format(config_id) 
     
-    log_path = os.path.join(config['model_dir'], model_name,'eval',dataset)
-    logging.basicConfig(filename=log_path, level=logging.INFO)
+    log_path = os.path.join(config['result_dir'], f'{config_id}_eval_{dataset}.txt')
+    
     
     bids_root = config['bids_root'] # Replace with your actual path
     threshold = config['threshold']
@@ -180,7 +188,8 @@ if __name__ == "__main__":
         test_subjects = test_seizure_subjects + test_bckg_subjects
         train_subject_idx = train_subjects
         test_subject_idx = test_subjects
-        
+        print(f"Train subjects: {len(train_subjects)}")
+        print(f"Test subjects: {len(test_subjects)}")
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("cuda available: ", torch.cuda.is_available())
@@ -295,8 +304,8 @@ if __name__ == "__main__":
     
         ss_path = os.path.join(
             config['result_dir'],
-            f"{model_name}_{dataset}",
-            f"{dataset}_sub-{subject_id}_ses-{session_id}_{task_id}_run-{run_id}.png"
+            f"{config_id}_{dataset}",
+            f"{dataset}_sub-{subject_id}_ses-{session_id}_run-{run_id}.png"
         )
         
         img_dir = os.path.dirname(ss_path)
@@ -350,7 +359,8 @@ if __name__ == "__main__":
     print(f"Model evaluation took: {end_model_time - start_model_time:.2f} seconds")
     print(f"Number of bckg recordings in test set: {bckg_counter}")
     print(f"Number of sz recordings in test set: {seiz_counter}")
-            
+    logging.shutdown()
+    os.rename('temp_eval.txt', log_path)
         
         
         

@@ -19,7 +19,7 @@ import random
 from sktime.classification.feature_based import Catch22Classifier
 import sys
 import logging
-
+from log import OutputCapture, StdoutCapture, StderrCapture
 
 # Import existing utilities
 from new_dataloader import (
@@ -80,7 +80,7 @@ def load_dataset(config):
 
 def train_model(train_epochs, config):
     """Train the model."""
-
+    global log_path
     # check if the config file exists
     if config.get('load_model', False):
         matching_config = find_matching_config(config, config['model_dir'])
@@ -192,54 +192,7 @@ def evaluate_recording(model, config):
     print(f"Number of bckg recordings in test set: {bckg_counter}")
     print(f"Number of sz recordings in test set: {seiz_counter}")
 
-class OutputCapture:
-    def __init__(self, filename, also_console=True):
-        self.filename = filename
-        self.also_console = also_console
-        self.original_stdout = sys.stdout
-        self.original_stderr = sys.stderr
-        
-        # Set up file logging
-        logging.basicConfig(
-            filename=filename,
-            level=logging.INFO,
-            format='%(asctime)s - %(message)s',
-            filemode='w'
-        )
-        self.logger = logging.getLogger('output_capture')
-    
-    def write_stdout(self, text):
-        if text.strip():  # Only log non-empty lines
-            self.logger.info(f"STDOUT: {text.strip()}")
-        if self.also_console:
-            self.original_stdout.write(text)
-    
-    def write_stderr(self, text):
-        if text.strip():
-            self.logger.error(f"STDERR: {text.strip()}")
-        if self.also_console:
-            self.original_stderr.write(text)
-    
-    def flush(self):
-        if self.also_console:
-            self.original_stdout.flush()
-            self.original_stderr.flush()
 
-class StdoutCapture:
-    def __init__(self, capture_obj):
-        self.capture = capture_obj
-    def write(self, text):
-        self.capture.write_stdout(text)
-    def flush(self):
-        self.capture.flush()
-
-class StderrCapture:
-    def __init__(self, capture_obj):
-        self.capture = capture_obj
-    def write(self, text):
-        self.capture.write_stderr(text)
-    def flush(self):
-        self.capture.flush()
 
 # Set up output capture at the top of your main file
 log_path = 'temp.txt'
@@ -255,9 +208,6 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
         config['timestamp'] = datetime.now().strftime("%m%d_%H%M%S") # add unique timestamp to the config
-        # log_path = os.path.join(config['model_dir'], 'temp.txt')
-        # logging.basicConfig(filename=log_path, filemode='a', level=logging.INFO)
-
         
         config['dataset'] = config['bids_root'].split('/')[-1]
 
@@ -274,5 +224,5 @@ if __name__ == "__main__":
     # evaluate_recording(model, config)
     # close the log file
     logging.shutdown()
-    os.rename(log_path, os.path.join(config['model_dir'], f'{config["model_name"]}_{config["timestamp"]}_log.txt'))
+    os.rename('temp.txt', log_path)
 

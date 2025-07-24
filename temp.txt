@@ -1,0 +1,17 @@
+2025-07-24 04:09:06,878 - STDOUT: Backend tkagg is interactive backend. Turning interactive mode on.
+2025-07-24 04:10:55,417 - STDOUT: Number of seizure subjects: 222
+2025-07-24 04:10:55,417 - STDOUT: Number of seizure subjects: 222
+2025-07-24 04:10:55,418 - STDOUT: Number of bckg subjects: 238
+2025-07-24 04:10:55,418 - STDOUT: Number of bckg subjects: 238
+2025-07-24 04:10:55,445 - STDOUT: Train subjects: 367
+2025-07-24 04:10:55,445 - STDOUT: Train subjects: 367
+2025-07-24 04:10:55,446 - STDOUT: Test subjects: 93
+2025-07-24 04:10:55,446 - STDOUT: Test subjects: 93
+2025-07-24 04:10:55,475 - STDOUT: cuda available:
+2025-07-24 04:10:55,475 - STDOUT: cuda available:
+2025-07-24 04:10:55,476 - STDOUT: True
+2025-07-24 04:10:55,476 - STDOUT: True
+2025-07-24 04:10:55,476 - STDOUT: device:
+2025-07-24 04:10:55,476 - STDOUT: device:
+2025-07-24 04:10:55,476 - STDOUT: cuda
+2025-07-24 04:10:55,477 - STDOUT: cuda
