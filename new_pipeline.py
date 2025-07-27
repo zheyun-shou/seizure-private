@@ -13,7 +13,6 @@ import json
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score, confusion_matrix, precision_recall_fscore_support
 import joblib
 import random
 from sktime.classification.feature_based import Catch22Classifier
@@ -24,19 +23,16 @@ from log import OutputCapture, StdoutCapture, StderrCapture
 # Import existing utilities
 from new_dataloader import (
     load_epoch_data,
-    load_evaluation_data_from_recording,
     read_all_events, 
     create_balanced_epochs,
-    train_test_epochs_split, 
     find_matching_config,
-    is_seizure_event
 )
-from new_analysis import analyze_classification, timescoring_analysis
+from new_analysis import analyze_classification
 from mne_utils import setup_mne_for_processing
 from detach_rocket.detach_classes import DetachRocket, DetachEnsemble
+from sklearn.model_selection import StratifiedKFold, KFold
 
-
-def load_dataset(config):
+def load_dataset(config): #not used
     """Load the dataset."""
 
     # Configure MNE verbosity
@@ -46,43 +42,55 @@ def load_dataset(config):
     
     # Step 1: Read and label all events
     all_events, (seizure_subjects, bckg_subjects) = read_all_events(config)
-    
+    # train test split, using stratified k-fold cross validation
     split_seed = config.get('split_seed')
-    train_seizure_subjects, test_seizure_subjects = train_test_split(seizure_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
-    train_bckg_subjects, test_bckg_subjects = train_test_split(bckg_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
-    train_subjects = train_seizure_subjects + train_bckg_subjects
-    test_subjects = test_seizure_subjects + test_bckg_subjects
-    print(f"Train subjects: {len(train_subjects)}")
-    print(f"Test subjects: {len(test_subjects)}")
-    # train events are all events from train subjects
-    train_events = all_events[all_events['subject'].isin(train_subjects)]
-    # test events are all events from test subjects
-    test_events = all_events[all_events['subject'].isin(test_subjects)]
+    n_splits = 5
+    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
+    all_subjects = np.concatenate([seizure_subjects, bckg_subjects])
+    all_labels = np.concatenate([np.ones(len(seizure_subjects)), np.zeros(len(bckg_subjects))])
+    split_counter = 0
+    for train_index, test_index in kf.split(all_subjects, all_labels):
+        split_counter += 1
+        train_subjects = all_subjects[train_index]
+        test_subjects = all_subjects[test_index]
+        print(f"Train subjects ids for split {split_counter}: {train_subjects}, train labels: {all_labels[train_index]}")
+        print(f"Test subjects ids for split {split_counter}: {test_subjects}, test labels: {all_labels[test_index]}")
 
-    if config.get('debug', False):
-        print("\nReading and labeling events...")
-        if all_events.empty:
-            print("No events found! Check your BIDS directory.")
-            return
-        print(f"Total events loaded: {len(all_events)}")
+    # train_seizure_subjects, test_seizure_subjects = train_test_split(seizure_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+    # train_bckg_subjects, test_bckg_subjects = train_test_split(bckg_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+    # train_subjects = train_seizure_subjects + train_bckg_subjects
+    # test_subjects = test_seizure_subjects + test_bckg_subjects
+    # print(f"Train subjects: {len(train_subjects)}")
+    # print(f"Test subjects: {len(test_subjects)}")
+    # train events are all events from train subjects
+        train_events = all_events[all_events['subject'].isin(train_subjects)]
+    # test events are all events from test subjects
+        test_events = all_events[all_events['subject'].isin(test_subjects)]
+
+        if config.get('debug', False):
+            print("\nReading and labeling events for split {}...".format(split_counter))
+            if all_events.empty:
+                print("No events found! Check your BIDS directory.")
+                return
+            print(f"Total events loaded for split {split_counter}: {len(all_events)}")
     
     # Step 3: Create balanced epochs
     
-    print(f"Creating balanced epochs for train set...")
-    train_epochs = create_balanced_epochs(train_events, config)
-    print(f"Creating balanced epochs for test set...")
-    test_epochs = create_balanced_epochs(test_events, config)
+        print(f"Creating balanced epochs for train set for split {split_counter}...")
+        train_epochs = create_balanced_epochs(train_events, config)
+        print(f"Creating balanced epochs for test set for split {split_counter}...")
+        test_epochs = create_balanced_epochs(test_events, config)
 
 
     print("\n=== Preprocess Pipeline Completed Successfully! ===")
 
     return train_epochs, test_epochs
 
-def train_model(train_epochs, config):
+def train_model(train_epochs, config, split_counter, cv=False):
     """Train the model."""
     global log_path
     # check if the config file exists
-    if config.get('load_model', False):
+    if config.get('load_model', False) and not cv:
         matching_config = find_matching_config(config, config['model_dir'])
         if matching_config is not None:
             print(f"Found existing model. Loading model...")
@@ -100,9 +108,9 @@ def train_model(train_epochs, config):
             else:
                 print(f"Model file not found, training new model...")
         
-    log_path = os.path.join(config['model_dir'], f'{config["model_name"]}_{config["timestamp"]}_log.txt')
+    log_path = os.path.join(config['model_dir'], f'{config["model_name"]}_{config["timestamp"]}_split_{split_counter}_log.txt')
 
-    X_train, y_train = load_epoch_data(train_epochs, config, split_name='train')
+    X_train, y_train = load_epoch_data(train_epochs, config, split_name='train', split_counter=split_counter, cv=cv)
     
     print(f"\n ===== Training Model ===== \n")
 
@@ -122,7 +130,7 @@ def train_model(train_epochs, config):
     print(f"Model training completed in: {end_training_time - start_training_time:.2f} seconds")
     
     # save model
-    model_name = "{}_{}".format(config['model_name'], config['timestamp'])
+    model_name = "{}_{}_split_{}".format(config['model_name'], config['timestamp'], split_counter)
     model_path = os.path.join(config['model_dir'], f"{model_name}.pkl")
     with open(model_path, 'wb') as f:
         joblib.dump(model, f)
@@ -130,7 +138,7 @@ def train_model(train_epochs, config):
 
     # save model config to the same directory
     # TODO: we need configuration, number of epochs, performance(terminal output).
-    config_path = os.path.join(config['model_dir'], f"{model_name}.yaml")
+    config_path = os.path.join(config['model_dir'], f"{model_name}_config.yaml")
     with open(config_path, 'w') as f:
         yaml.dump(config, f)
     print(f"Config saved to: {config_path}")
@@ -139,9 +147,9 @@ def train_model(train_epochs, config):
 
     return model
 
-def test_model(model, test_epochs, config):
+def test_model(model, test_epochs, config, split_counter, cv=False):
     """Evaluate the model."""
-    X_test, y_test = load_epoch_data(test_epochs, config, split_name='test')
+    X_test, y_test = load_epoch_data(test_epochs, config, split_name='test', split_counter=split_counter, cv=cv)
     print(f"\n ===== Evaluating Model on test set ===== \n")
 
     # evaluate the model
@@ -154,75 +162,75 @@ def test_model(model, test_epochs, config):
 
     return y_pred
 
-def evaluate_recording(model, config):
-    """Evaluate the model on a single recording."""
-    recording_wise_data = load_evaluation_data_from_recording(config)
-    summary_list = []
-    bckg_counter = 0
-    seiz_counter = 0
-
-    for recording_key, data in recording_wise_data.items():
-        # Extract data from the dictionary
-        epoch_data = data['epoch_data']
-        labels = data['labels']
-        intervals = data['interval']
-        recording_events = data['events']
-        recording_ids = data['recording_ids']
-        fs = data['fs']
-        
-        # do model prediction
-        y_pred = model.predict(epoch_data)
-
-        if is_seizure_event(recording_events, config):
-            seiz_counter += 1
-        else:
-            bckg_counter += 1
-
-        recording_ref_events = [(int(row['onset']), int(row['onset'] + row['duration'])) \
-                                for _, row in recording_events.iterrows() if row['eventType'] != 'bckg']
-        recording_hyp_events = [interval for interval, pred in zip(intervals, y_pred) if pred == 1]
-        n_samples = int(recording_events['recordingDuration'][0] * fs)
-        summary = timescoring_analysis(recording_ref_events, recording_hyp_events, fs, n_samples, recording_ids, config)
-        summary_list.append(summary)
-
-    summary_df = pd.DataFrame(summary_list)
-    summary_path = os.path.join(config['result_dir'], f'{config["model_name"]}_{config["dataset"]}', 'summary.csv')
-    summary_df.to_csv(summary_path, index=False)
-    print(f"Summary saved to: {summary_path}")
-    print(f"Number of bckg recordings in test set: {bckg_counter}")
-    print(f"Number of sz recordings in test set: {seiz_counter}")
-
-
 
 # Set up output capture at the top of your main file
 log_path = 'temp.txt'
 output_capture = OutputCapture(log_path, also_console=True)
 sys.stdout = StdoutCapture(output_capture)
-sys.stderr = StderrCapture(output_capture)
+# sys.stderr = StderrCapture(output_capture)
 
 if __name__ == "__main__":
     
-    # logger = logging.getLogger(__name__)
-    
-    with open('config.yaml', 'r') as f:
+    with open('./config_cv_en.yaml', 'r') as f:
         config = yaml.safe_load(f)
-
         config['timestamp'] = datetime.now().strftime("%m%d_%H%M%S") # add unique timestamp to the config
-        
         config['dataset'] = config['bids_root'].split('/')[-1]
 
     os.makedirs(config['preprocessed_dir'], exist_ok=True)
     os.makedirs(config['model_dir'], exist_ok=True)
     os.makedirs(config['result_dir'], exist_ok=True)
 
+    # train_epochs, test_epochs = load_dataset(config)
+    # load data
+    setup_mne_for_processing(verbose=config.get('mne_verbose', False))
+
+    print("\n=== Preprocess Pipeline with Balanced Epochs ===")
     
+    # Read and label all events
+    all_events, (seizure_subjects, bckg_subjects) = read_all_events(config)
+    # train test split, using stratified k-fold cross validation
+    split_seed = config.get('split_seed')
+    n_splits = 5
+    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
+    all_subjects = np.concatenate([seizure_subjects, bckg_subjects])
+    all_labels = np.concatenate([np.ones(len(seizure_subjects)), np.zeros(len(bckg_subjects))])
+    split_counter = 0
+    for train_index, test_index in kf.split(all_subjects, all_labels):
+        split_counter += 1
+        train_subjects = all_subjects[train_index]
+        test_subjects = all_subjects[test_index]
+        print(f"Train subjects ids for split {split_counter}: {train_subjects}, train labels: {all_labels[train_index]}")
+        print(f"Test subjects ids for split {split_counter}: {test_subjects}, test labels: {all_labels[test_index]}")
 
-    train_epochs, test_epochs = load_dataset(config)
+    # train_seizure_subjects, test_seizure_subjects = train_test_split(seizure_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+    # train_bckg_subjects, test_bckg_subjects = train_test_split(bckg_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+    # train_subjects = train_seizure_subjects + train_bckg_subjects
+    # test_subjects = test_seizure_subjects + test_bckg_subjects
 
-    model = train_model(train_epochs, config)
-    test_model(model, test_epochs, config)
+    # train events are all events from train subjects
+        train_events = all_events[all_events['subject'].isin(train_subjects)]
+    # test events are all events from test subjects
+        test_events = all_events[all_events['subject'].isin(test_subjects)]
+
+        if config.get('debug', False):
+            print("\nReading and labeling events for split {}...".format(split_counter))
+            if all_events.empty:
+                print("No events found! Check your BIDS directory.")
+                break
+            print(f"Total events loaded for split {split_counter}: {len(all_events)}")
+    
+        # Create balanced epochs
+        print(f"Creating balanced epochs for train set for split {split_counter}...")
+        train_epochs = create_balanced_epochs(train_events, config)
+        print(f"Creating balanced epochs for test set for split {split_counter}...")
+        test_epochs = create_balanced_epochs(test_events, config)
+
+        # train model
+        model = train_model(train_epochs, config, split_counter, cv=True)
+        # test model
+        test_model(model, test_epochs, config, split_counter, cv=True)
     # evaluate_recording(model, config)
-    # close the log file
+
     logging.shutdown()
     os.rename('temp.txt', log_path)
 

@@ -311,7 +311,7 @@ if __name__ == "__main__":
         img_dir = os.path.dirname(ss_path)
         os.makedirs(img_dir, exist_ok=True)
         
-        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, plot=True, ss_path=ss_path)
+        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, plot=False, ss_path=ss_path)
         
         if sample_scores is None or event_scores is None:
             continue

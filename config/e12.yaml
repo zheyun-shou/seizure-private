@@ -1,0 +1,45 @@
+# bids_root: '/home/hackathon/Programming/seizure-private/BIDS_TUSZ'
+bids_root: 'F:/BIDS_TUSZ'
+model_dir: './models'
+result_dir: './results'
+preprocessed_dir: './preprocessed'
+
+# data settings
+threshold: 0.5 # probability threshold for seizure detection
+data_size: 1 # data size for the datase
+split_ratio: 0.8 # train size for train/test split
+epoch_duration: 12 # epoch duration in seconds
+sample_rate: 128 # sample rate for the data in Hz
+seizure_event_type: ['sz'] # seizure event type in the tsv file
+inference: False # if True, will not train the model, but will load the model and run inference on the test set
+
+# New parameters for balanced epoch creation
+epoch_ratios:
+  sz: 2
+  interictal: 2
+  bckg: 1
+sample_seed: 40 #for sampling epochs from each event type
+split_seed: 42 #for train/test split
+
+# model settings
+model_type: 'detach_rocket' # 'detach_rocket' or 'detach_ensemble' or 'catch22'
+model_name: 'test'
+load_model: True # if True, will load the model from the model_dir
+save_model: True # if True, will save the model to the model_dir
+
+# detach rocket settings
+num_kernels: 10000
+num_models: 10
+
+# mne / data loader settings
+mne_preload: False
+mne_verbose: False
+max_workers: 4
+load_preprocessed_data: True # if True, will load the preprocessed data from the preprocessed_dir
+save_preprocessed_data: True # if True, will save the preprocessed data to the preprocessed_dir
+
+# timescoring settings
+generate_timescoring_plots: True
+
+# print debug information
+debug: True

@@ -340,13 +340,13 @@ def find_matching_config(config, dir):
                 return matching_config
     return None
 
-def load_epoch_data(epochs, config, split_name):
+def load_epoch_data(epochs, config, split_name, split_counter, cv=False):
     """ Load epoch data from edf file using mne library and assign labels with multiprocessing support """
     X, y = [], []
     
     assert split_name in ['train', 'test'], "Split name must be either 'train' or 'test'"
 
-    if config.get('load_preprocessed_data', False):
+    if config.get('load_preprocessed_data', False) and not cv:
         # 1. scan the preprocessed_dir for config files
         # 2. load the config file
         # 3. check the following terms if they are the same as the config:
@@ -531,12 +531,12 @@ def load_epoch_data(epochs, config, split_name):
         # Save both X and y in a single npz file
         timestamp = config['timestamp']
         np.savez_compressed(
-            os.path.join(config['preprocessed_dir'], f'data_{split_name}_{timestamp}.npz'), 
+            os.path.join(config['preprocessed_dir'], f'data_{split_name}_{split_counter}_{timestamp}.npz'), 
             X=X, 
             y=y
         )
         # config is the same for all splits, so save it once
-        with open(os.path.join(config['preprocessed_dir'], f'config_{timestamp}.yaml'), 'w') as f:
+        with open(os.path.join(config['preprocessed_dir'], f'config_{split_counter}_{timestamp}.yaml'), 'w') as f:
             yaml.dump(config, f)
         print(f"Preprocessed data saved to: {config['preprocessed_dir']}")
     
