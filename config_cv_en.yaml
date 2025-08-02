@@ -1,5 +1,5 @@
 # bids_root: '/home/hackathon/Programming/seizure-private/BIDS_TUSZ'
-bids_root: '/home/jovyan/BIDS_TUSZ'
+bids_root: 'F:/BIDS_TUSZ'
 model_dir: './models'
 result_dir: './results'
 preprocessed_dir: './preprocessed'
