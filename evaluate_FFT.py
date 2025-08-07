@@ -14,7 +14,7 @@ import matplotlib.colors as mc
 from matplotlib.axes import Axes
 import colorsys
 import logging
-from sklearn.model_selection import StratifiedKFold
+
 # Machine learning & classification
 from sklearn import svm
 from sklearn.model_selection import train_test_split
@@ -35,6 +35,7 @@ from mne import make_fixed_length_epochs, Annotations
 
 # BIDS data handling
 from bids import BIDSLayout
+from FFT import generate_psd_feature
 
 # Custom modules
 from dataloader import (
@@ -51,6 +52,7 @@ from detach_rocket.detach_classes import DetachRocket, DetachEnsemble
 from analysis import Analyzer
 from new_dataloader import read_all_events
 from new_analysis import analyze_classification
+from sklearn.model_selection import StratifiedKFold
 
 # Scoring utilities
 from timescoring.annotations import Annotation
@@ -58,10 +60,12 @@ from timescoring import scoring, visualization
 from timescoring.scoring import SampleScoring, EventScoring
 
 # log_path = 'temp_eval.txt'
+# output_capture = OutputCapture(log_path, also_console=True)
+# sys.stdout = StdoutCapture(output_capture)
+# sys.stderr = StderrCapture(output_capture)
 
 
-
-def evaluate_recording(edf_path, tsv_path, model_path, threshold, epoch_duration, downsample=2.0, epoch_overlap=0, plot=False, ss_path=None):
+def evaluate_recording_FFT(edf_path, tsv_path, model_path, threshold, epoch_duration, downsample=2.0, epoch_overlap=0, plot=False, ss_path=None):
 
     model = joblib.load(model_path)
     raw_data = read_raw_edf(edf_path, preload=True)
@@ -93,17 +97,17 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, epoch_duration
     try:
         X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
         y_test = np.concatenate([s["label"] for s in segments]).astype(int)
+        psd_feature_test = generate_psd_feature(X_test, epoch_duration, fs)
         time_start_test = np.concatenate([s["time_start"] for s in segments])
         time_end_test = np.concatenate([s["time_end"] for s in segments])
-        #X_test = X_test[:, np.newaxis, :]
-        del segments
+        del segments, X_test
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # y_pred = model.predict(X_test)
         # predictions = model.predict_proba(X_test)
         # yp = (predictions[:, 1] > threshold).astype(int) # threshold 
         # y_pred = model.label_encoder.inverse_transform(yp)
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(psd_feature_test)
         
         hyp_events = []
         
@@ -135,7 +139,7 @@ def evaluate_recording(edf_path, tsv_path, model_path, threshold, epoch_duration
         # close the figures
         plt.close(figSamples)
         plt.close(figEvents)
-    
+
         return sample_scores, event_scores
     except Exception as e:
         print(f"Error: {e}")
@@ -151,17 +155,19 @@ def append_notnan_and_count_nan(value, lst, counter):
 
 
 if __name__ == "__main__":
-    config_id = 'cv_en_0728_234507_split_2'
+    config_id = 'fft_test_0804_073152_split_5'
     config_file = './models/{}_config.yaml'.format(config_id)
     with open(config_file, 'r') as f: #read config file
         config = yaml.safe_load(f)
-    dataset = "TUSZ" # "Siena" or "TUSZ"
-    model_name = '{}.pkl'.format(config_id) 
-    
+    dataset = "Siena" # "Siena" or "TUSZ"
+    model_name = '{}.pkl'.format(config_id)
+
     log_path = os.path.join(config['result_dir'], f'{config_id}_eval_{dataset}.txt')
     output_capture = OutputCapture(log_path, also_console=True)
     sys.stdout = StdoutCapture(output_capture)
-    sys.stderr = StderrCapture(output_capture)
+    sys.stderr = StderrCapture(output_capture) 
+    
+    # log_path = os.path.join(config['result_dir'], f'{config_id}_eval_{dataset}.txt')
     
     
     bids_root = config['bids_root'] # Replace with your actual path
@@ -170,6 +176,7 @@ if __name__ == "__main__":
     split_seed = config['split_seed']
     epoch_duration = config['epoch_duration'] # in seconds
     data_size = config['data_size']
+    samplerate = config['sample_rate']
     
     subject_ids = []
     for root, dirs, files in os.walk(bids_root):
@@ -190,7 +197,7 @@ if __name__ == "__main__":
         split_counter = 0
         for train_index, test_index in kf.split(all_subjects, all_labels):
             split_counter += 1
-            if split_counter != 2:
+            if split_counter != 5:
                 continue
             train_subjects = all_subjects[train_index]
             test_subjects = all_subjects[test_index]
@@ -213,7 +220,7 @@ if __name__ == "__main__":
     if dataset == "Siena":
         data_size = 1
         bids_root = '/home/jovyan/BIDS_Siena'
-        test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, max_workers=8) # set max_workers to 1 for debugging
+        test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, max_workers=16) # set max_workers to 1 for debugging
         test_subject_idx = subject_ids
         
         X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
@@ -232,7 +239,14 @@ if __name__ == "__main__":
                 print(f"Model loaded from: {model_path}")
         
         start_model_time = time.time()
-        y_pred = model.predict(X_test)
+        
+        # model prediction on test set
+        # predictions = model.predict_proba(X_test)
+        # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
+        
+        # y_pred = model.label_encoder.inverse_transform(yp)
+        psd_feature_test = generate_psd_feature(X_test, epoch_duration, samplerate)
+        y_pred = model.predict(psd_feature_test)
         
         f1, precision, recall, accuracy, conf_mat, conf_mat_norm = analyze_classification(y_pred, y_test)
         
@@ -318,7 +332,7 @@ if __name__ == "__main__":
         img_dir = os.path.dirname(ss_path)
         os.makedirs(img_dir, exist_ok=True)
         
-        sample_scores, event_scores = evaluate_recording(edf_path, tsv_path, model_path, threshold, epoch_duration, plot=False, ss_path=ss_path)
+        sample_scores, event_scores = evaluate_recording_FFT(edf_path, tsv_path, model_path, threshold, epoch_duration, plot=False, ss_path=ss_path)
         
         if sample_scores is None or event_scores is None:
             continue

@@ -7,6 +7,7 @@ This replaces the old approach of loading data from segments.
 import os
 import time
 from datetime import datetime
+from catch22_feature_analysis import Catch22CumlClassifier
 import pandas as pd
 import yaml
 import json
@@ -15,7 +16,6 @@ import torch
 from sklearn.model_selection import train_test_split
 import joblib
 import random
-from sktime.classification.feature_based import Catch22Classifier
 import sys
 import logging
 from log import OutputCapture, StdoutCapture, StderrCapture
@@ -122,7 +122,7 @@ def train_model(train_epochs, config, split_counter, cv=False):
     elif config['model_type'] == 'detach_ensemble':
         model = DetachEnsemble(num_models=config['num_models'], num_kernels=config['num_kernels'], model_type='pytorch_minirocket', verbose=False)
     elif config['model_type'] == 'catch22':
-        model = Catch22Classifier(random_state=42, n_jobs=-1)
+        model = Catch22CumlClassifier(batch_size=512, n_jobs=8)
 
     start_training_time = time.time()
     model.fit(X_train, y_train)
@@ -171,7 +171,7 @@ sys.stdout = StdoutCapture(output_capture)
 
 if __name__ == "__main__":
     
-    with open('./config_cv_en.yaml', 'r') as f:
+    with open('./config_cv_c22.yaml', 'r') as f:
         config = yaml.safe_load(f)
         config['timestamp'] = datetime.now().strftime("%m%d_%H%M%S") # add unique timestamp to the config
         config['dataset'] = config['bids_root'].split('/')[-1]
@@ -197,6 +197,8 @@ if __name__ == "__main__":
     split_counter = 0
     for train_index, test_index in kf.split(all_subjects, all_labels):
         split_counter += 1
+        if split_counter == 1:
+            continue
         train_subjects = all_subjects[train_index]
         test_subjects = all_subjects[test_index]
         print(f"Train subjects ids for split {split_counter}: {train_subjects}, train labels: {all_labels[train_index]}")
@@ -227,6 +229,7 @@ if __name__ == "__main__":
 
         # train model
         model = train_model(train_epochs, config, split_counter, cv=True)
+        # model = joblib.load('./models/cv_en_0728_093350_split_1.pkl')
         # test model
         test_model(model, test_epochs, config, split_counter, cv=True)
     # evaluate_recording(model, config)

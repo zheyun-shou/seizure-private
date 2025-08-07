@@ -1,6 +1,8 @@
 from datetime import datetime
+import gzip
 import json
 import os
+import pickle
 import mne
 import pandas as pd
 import numpy as np
@@ -358,11 +360,12 @@ def load_epoch_data(epochs, config, split_name, split_counter, cv=False):
             print(f"Found matching {split_name} data...")
             print(f"Loading {split_name} data...")
             timestamp = matching_config['timestamp']
-            data_file = os.path.join(config['preprocessed_dir'], f'data_{split_name}_{timestamp}.npz')
+            data_file = os.path.join(config['preprocessed_dir'], f'data_{split_name}_{timestamp}.pkl.gz')
             if os.path.exists(data_file):
-                data = np.load(data_file)
+                with gzip.open(data_file, 'rb') as f:
+                    data = pickle.load(f)
                 print(f"Loaded {split_name} data from: {data_file}")
-                return data['X'], data['y']
+                return data[0], data[1]
             else:
                 print(f"Data file not found: {data_file}")
         
@@ -530,11 +533,10 @@ def load_epoch_data(epochs, config, split_name, split_counter, cv=False):
     if config.get('save_preprocessed_data', False):
         # Save both X and y in a single npz file
         timestamp = config['timestamp']
-        np.savez_compressed(
-            os.path.join(config['preprocessed_dir'], f'data_{split_name}_{split_counter}_{timestamp}.npz'), 
-            X=X, 
-            y=y
-        )
+        with gzip.open(os.path.join(config['preprocessed_dir'], f'data_{split_name}_{split_counter}_{timestamp}.pkl.gz'), 'wb') as f:
+            # save X and y to a single file
+            pickle.dump((X, y), f)
+
         # config is the same for all splits, so save it once
         with open(os.path.join(config['preprocessed_dir'], f'config_{split_counter}_{timestamp}.yaml'), 'w') as f:
             yaml.dump(config, f)

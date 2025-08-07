@@ -5,11 +5,20 @@ import matplotlib.pyplot as plt
 import yaml
 from datetime import datetime
 import os
+import sys
+import time
 from sklearn.model_selection import StratifiedKFold
 from mne_utils import setup_mne_for_processing
 from new_dataloader import load_epoch_data, read_all_events, create_balanced_epochs
 from scipy.signal.windows import gaussian, hann
 from scipy.signal import ShortTimeFFT
+from sklearn import svm
+from new_pipeline import test_model
+import logging
+from log import OutputCapture, StdoutCapture, StderrCapture
+import joblib
+from new_analysis import analyze_classification
+
 
 def power_spectral_density_feature(signal, samplerate, new_length=None):
 
@@ -122,12 +131,13 @@ def generate_psd_feature(X_train, epoch_duration, samplerate):
                 # psd 1-7 is array with different length, so we need to concatenate them into one array
                 psd_feature_per_channel = np.concatenate(psd_feature_per_channel, axis=0)
                 #vertically append psd_feature_per_channel to psd_feature_multi_channel
-                psd_feature_multi_channel = psd_feature_per_channel if len(psd_feature_multi_channel) == 0 else np.vstack((psd_feature_multi_channel, psd_feature_per_channel))
-                print("psd_feature_multi_channel.shape: ", psd_feature_multi_channel.shape)
+                psd_feature_multi_channel = psd_feature_per_channel if len(psd_feature_multi_channel) == 0 else np.concatenate((psd_feature_multi_channel, psd_feature_per_channel))
+                # print("psd_feature_multi_channel.shape: ", psd_feature_multi_channel.shape)
 
-        psd_feature_all_epochs.append(psd_feature_multi_channel)
-    print("psd_feature_all_epochs.shape: ", np.array(psd_feature_all_epochs).shape)
-    return np.array(psd_feature_all_epochs)
+        psd_feature_all_epochs.append(np.abs(psd_feature_multi_channel))
+    psd_feature_all_epochs = np.array(psd_feature_all_epochs)
+
+    return psd_feature_all_epochs
 
 def main():
 
@@ -182,61 +192,52 @@ def main():
         test_epochs = create_balanced_epochs(test_events, config)
 
         X_train, y_train = load_epoch_data(train_epochs, config, split_name='train', split_counter=split_counter, cv=True)
-        print("X_train.shape: ", X_train.shape) #(5651, 19, 1024)
+        # print("X_train.shape: ", X_train.shape) #(5651, 19, 1024)
         epoch_duration = config.get('epoch_duration')
         samplerate = config.get('sample_rate')
         psd_feature_all_epochs = generate_psd_feature(X_train, epoch_duration, samplerate)
-        
-        
-        # return np.array(psd_feature_all_epochs)
+        model = svm.SVC()
+        start_training_time = time.time()
+        model.fit(psd_feature_all_epochs, y_train)
+        end_training_time = time.time()
 
+        print(f"Model training completed in: {end_training_time - start_training_time:.2f} seconds")
+    
+        # save model
+        model_name = "{}_{}_split_{}".format(config['model_name'], config['timestamp'], split_counter)
+        model_path = os.path.join(config['model_dir'], f"{model_name}.pkl")
+        with open(model_path, 'wb') as f:
+            joblib.dump(model, f)
+        print(f"Model saved to: {model_path}")
+    
+        # save model config to the same directory
+        # TODO: we need configuration, number of epochs, performance(terminal output).
+        config_path = os.path.join(config['model_dir'], f"{model_name}_config.yaml")
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
+        print(f"Config saved to: {config_path}")
+    
+        print(f"\n ===== Training Model Completed ===== \n")
+            # return np.array(psd_feature_all_epochs)
+        X_test, y_test = load_epoch_data(test_epochs, config, split_name='test', split_counter=split_counter, cv=True)
+        print(f"\n ===== Evaluating Model on test set ===== \n")
+        psd_feature_test = generate_psd_feature(X_test, epoch_duration, samplerate)
+        y_pred = model.predict(psd_feature_test)
+        print(f"Test set size(X_test): {len(X_test)}")
+
+        f1, precision, recall, accuracy, conf_mat, conf_mat_norm = analyze_classification(y_pred, y_test)
+
+        print(f"\n ===== Evaluating Model Completed ===== \n")
+        
+
+    
                     
 
-
-
-
-    # psds = power_spectral_density_feature(uni_eeg_epoch, 256)
-    # freqs, times, spec = spectrogram_feature(uni_eeg, 256)
-    # plt.figure()
-    # plt.subplot(11, 1, 1)
-    # plt.plot(x_time, uni_eeg)      
-    # plt.title('Original Signal (P3-REF)')  
-    # plt.subplot(11, 1, 2)
-    # plt.plot(psds[0])
-    # plt.title('PSD 0~4 Hz feature')  
-    # plt.subplot(11, 1, 3)
-    # plt.plot(psds[1])
-    # plt.title('PSD 4~7 Hz feature')  
-    # plt.subplot(11, 1, 4)
-    # plt.plot(psds[2])
-    # plt.title('PSD 7~13 Hz feature')  
-    # plt.subplot(11, 1, 5)
-    # plt.plot(psds[3])
-    # plt.title('PSD 13~15 Hz feature')  
-    # plt.subplot(11, 1, 6)
-    # plt.plot(psds[4])
-    # plt.title('PSD 15~30 Hz feature')  
-    # plt.subplot(11, 1, 7)
-    # plt.plot(psds[5])
-    # plt.title('PSD 30~45 Hz feature')  
-    # plt.subplot(11, 1, 8)
-    # plt.plot(psds[6])
-    # plt.title('PSD 45~60 Hz feature')  
-    # plt.subplot(11, 1, 9)
-    # plt.plot(psds[7])
-    # plt.title('PSD 60~75 Hz feature')  
-    # plt.subplot(11, 1, 10)
-    # plt.plot(psds[8])
-    # plt.title('PSD 75~97 Hz feature')  
-    # plt.subplot(11, 1, 11)
-    # plt.plot(psds[9])
-    # plt.title('PSD 97~128 Hz feature')  
-    # plt.show()
-
-    # plt.figure()
-    # plt.pcolormesh(spec)
-    # plt.title("spectrogram feature")
-    # plt.show()
+log_path = 'temp.txt'
+output_capture = OutputCapture(log_path, also_console=True)
+sys.stdout = StdoutCapture(output_capture)
 
 if __name__ == "__main__":
     main()
+    logging.shutdown()
+    os.rename('temp.txt', log_path)
