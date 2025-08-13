@@ -214,6 +214,7 @@ def extract_epochs(file_path, event_info, downsample=2.0, event_offset=0, epoch_
         else: # info_type == "bckg"
             # bckg_info = extend_event_info(event_info, event_offset)
             bckg_info = event_info
+            # total_duration = raw_data._last_time
             bckg_info["onset"] = 0
             bckg_info["duration"] = raw_data._last_time
             bckg_epochs = extract_epochs_within_event(bckg_info, ids, raw_data, epoch_duration, epoch_overlap)
@@ -281,7 +282,7 @@ def get_data_from_epochs(epochs, return_epoch_data=False):
         
     return segments
 
-def process_recording(ids, bids_root, epoch_duration, epoch_overlap, event_offset, downsample=2.0):
+def process_recording(ids, bids_root, epoch_duration, downsample=2.0, epoch_overlap=0, event_offset=0):
     
     tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv")
     edf_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf")
@@ -293,7 +294,7 @@ def process_recording(ids, bids_root, epoch_duration, epoch_overlap, event_offse
     
     return seizure_epoch, non_seizure_epoch, bckg_epoch, t
 
-def read_dataset(bids_root, epoch_duration, event_offset=0, epoch_overlap=0, subject_ids=None, max_workers=1):
+def read_dataset(bids_root, epoch_duration, subject_ids=None, data_size=1, max_workers=1):
     
     recording_ids = read_ids_from_bids(bids_root)
     # keep the recording ids that are in the subject_ids
@@ -307,7 +308,7 @@ def read_dataset(bids_root, epoch_duration, event_offset=0, epoch_overlap=0, sub
 
     if max_workers == 1:
         for ids in recording_ids:
-            seizure_epoch, non_seizure_epoch, bckg_epoch, t = process_recording(ids, bids_root, epoch_duration, epoch_overlap, event_offset)
+            seizure_epoch, non_seizure_epoch, bckg_epoch, t = process_recording(ids, bids_root, epoch_duration)
             if seizure_epoch is not None:
                 seizure_epochs.extend(seizure_epoch)
             if non_seizure_epoch is not None:
@@ -318,7 +319,7 @@ def read_dataset(bids_root, epoch_duration, event_offset=0, epoch_overlap=0, sub
     else:
         # multirpocessing in cpu
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(process_recording, ids, bids_root, epoch_duration, epoch_overlap, event_offset) for ids in recording_ids]
+            futures = [executor.submit(process_recording, ids, bids_root, epoch_duration) for ids in recording_ids]
             for future in as_completed(futures):
                 res = future.result()
                 if res[0] is not None:
@@ -375,8 +376,14 @@ def read_dataset(bids_root, epoch_duration, event_offset=0, epoch_overlap=0, sub
     
     # get the data from epochs
     segments = get_data_from_epochs(seizure_epochs)
+    del seizure_epochs
     segments.extend(get_data_from_epochs(non_seizure_epochs))
+    del non_seizure_epochs
     segments.extend(get_data_from_epochs(bckg_epochs))
+    del bckg_epochs
+    
+
+    
     
     print(f"Number of segments: {len(segments)}")
     # save the seizure_epoch_lens, non_seizure_epoch_cnt, bckg_epoch_cnt to csv

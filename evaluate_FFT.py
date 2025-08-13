@@ -155,7 +155,7 @@ def append_notnan_and_count_nan(value, lst, counter):
 
 
 if __name__ == "__main__":
-    config_id = 'fft_test_0804_073152_split_5'
+    config_id = 'fft_test_0804_020712_split_1'
     config_file = './models/{}_config.yaml'.format(config_id)
     with open(config_file, 'r') as f: #read config file
         config = yaml.safe_load(f)
@@ -197,7 +197,7 @@ if __name__ == "__main__":
         split_counter = 0
         for train_index, test_index in kf.split(all_subjects, all_labels):
             split_counter += 1
-            if split_counter != 5:
+            if split_counter != 1:
                 continue
             train_subjects = all_subjects[train_index]
             test_subjects = all_subjects[test_index]
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     
     if dataset == "Siena":
         data_size = 1
-        bids_root = '/home/jovyan/BIDS_Siena'
+        bids_root = 'F:/BIDS_Siena'
         test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, max_workers=16) # set max_workers to 1 for debugging
         test_subject_idx = subject_ids
         
@@ -252,16 +252,14 @@ if __name__ == "__main__":
         
         end_model_time = time.time()
     
-    if dataset == "test":
+    if dataset == "test": #sub-203_ses-01_task-szMonitoring_run-01_events
         data_size = 1
         seizure_epochs, non_seizure_epochs, bckg_epochs = [], [], [],
-        recording_ids = read_ids_from_bids(bids_root)
-        for ids in recording_ids:
 
-            tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv")
-            edf_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf")
-            events_info = extract_event_info(tsv_path, 10)
-            epochs = extract_epochs(edf_path, events_info, inference=True)
+        tsv_path = '/home/jovyan/BIDS_TUSZ/sub-203/ses-01/eeg/sub-203_ses-01_task-szMonitoring_run-01_events.tsv'
+        edf_path = '/home/jovyan/BIDS_TUSZ/sub-203/ses-01/eeg/sub-203_ses-01_task-szMonitoring_run-01_eeg.edf'
+        events_info = extract_event_info(tsv_path, epoch_duration)
+        epochs = extract_epochs(edf_path, events_info, 2, 0, epoch_duration, 0, inference=True)
     
         
         test_segments = get_data_from_epochs(epochs)

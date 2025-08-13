@@ -7,6 +7,7 @@ import seaborn as sns
 import sktime
 # import cuml
 from cuml.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
 from sktime.base._base import _clone_estimator
 from sktime.classification._delegate import _DelegatedClassifier
 from sktime.pipeline import make_pipeline

@@ -185,6 +185,8 @@ def plot_f1_scores_histogram(f1_scores, title='Histogram of Subject FPR',
     plt.xlim(0, 1)  # Set x-axis limits to [0, 1] for F1 scores
     plt.tight_layout()
     plt.show()
+    plt.savefig(f"./figures/{title}.png")
+    plt.close()
 
 if __name__ == "__main__":
     

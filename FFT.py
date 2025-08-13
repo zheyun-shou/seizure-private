@@ -1,243 +1,394 @@
-import numpy as np
-from scipy import signal
-from scipy.signal import stft
-import matplotlib.pyplot as plt
-import yaml
-from datetime import datetime
+# Standard libraries
 import os
-import sys
 import time
-from sklearn.model_selection import StratifiedKFold
-from mne_utils import setup_mne_for_processing
-from new_dataloader import load_epoch_data, read_all_events, create_balanced_epochs
-from scipy.signal.windows import gaussian, hann
-from scipy.signal import ShortTimeFFT
-from sklearn import svm
-from new_pipeline import test_model
-import logging
-from log import OutputCapture, StdoutCapture, StderrCapture
+import math
+import random
 import joblib
+import yaml
+import sys
+# Data processing and visualization
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.colors as mc
+from matplotlib.axes import Axes
+import colorsys
+import logging
+
+# Machine learning & classification
+from sklearn import svm
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    f1_score,
+    confusion_matrix,
+    precision_recall_fscore_support
+)
+from sktime.classification.kernel_based import RocketClassifier
+from sktime.classification.feature_based import Catch22Classifier
+
+# Deep learning
+import torch
+
+# Domain-specific libraries
+from mne.io import read_raw_edf
+from mne import make_fixed_length_epochs, Annotations
+
+# BIDS data handling
+from bids import BIDSLayout
+from FFT import generate_psd_feature
+
+# Custom modules
+from dataloader import (
+    read_dataset,
+    get_ids_from_filename,
+    get_path_from_ids,
+    extract_epochs,
+    extract_event_info,
+    get_data_from_epochs,
+    read_ids_from_bids
+)
+from log import OutputCapture, StdoutCapture, StderrCapture
+from detach_rocket.detach_classes import DetachRocket, DetachEnsemble
+from analysis import Analyzer
+from new_dataloader import read_all_events
 from new_analysis import analyze_classification
+from sklearn.model_selection import StratifiedKFold
+
+# Scoring utilities
+from timescoring.annotations import Annotation
+from timescoring import scoring, visualization
+from timescoring.scoring import SampleScoring, EventScoring
+
+# log_path = 'temp_eval.txt'
+# output_capture = OutputCapture(log_path, also_console=True)
+# sys.stdout = StdoutCapture(output_capture)
+# sys.stderr = StderrCapture(output_capture)
 
 
-def power_spectral_density_feature(signal, samplerate, new_length=None):
+def evaluate_recording_FFT(edf_path, tsv_path, model_path, threshold, epoch_duration, downsample=2.0, epoch_overlap=0, plot=False, ss_path=None):
 
-    freq_resolution = 2 # higher the better resolution but time consuming...
-    def psd(amp, begin, end, freq_resol = freq_resolution):
-        return np.average(amp[begin*freq_resol:end*freq_resol], axis=0)
-
-    nperseg = 8
-    # noverlap = 4
-    noverlap = 0
-    nfft = samplerate * freq_resolution
-    freqs, times, spec = stft(signal, samplerate, nperseg=nperseg, noverlap=noverlap, nfft=nfft, padded=True, boundary='zeros')
-    amp = (np.log(np.abs(spec) + 1e-10))
-
-    # new_length = int(new_length)
-    # if abs(amp.shape[1] - new_length) > 1:
-    #     print("Difference is huge {} {}".format(amp.shape[1], new_length))
-    # amp = amp[:,:new_length]
-
-    # new_sig = sci_sig.resample(signal, len(times))
-    # plt.figure()
-    # plt.subplot(3, 1, 1)
-    # plt.plot(signal)    
-    # plt.subplot(3, 1, 2)
-    # plt.plot(new_sig)    
-    # plt.subplot(3, 1, 3)
-    # plt.pcolormesh(amp)
-    # plt.show()
-
-    # print("freqs: ", freqs)
-    # print("times: ", times)
-    # print("freqs: ", len(freqs))
-    # print("times: ", len(times))
-    # print("signal len: ", len(signal))
-    # exit(1)
-
-    psds = []
-    if samplerate == 128:
-        psd1 = psd(amp,0,4)
-        psd2 = psd(amp,4,8)
-        psd3 = psd(amp,8,13)
-        psd4 = psd(amp,13,20)
-        psd5 = psd(amp,20,30)
-        psd6 = psd(amp,30,40)
-        psd7 = psd(amp,40,60)
-
-        psds = [psd1, psd2, psd3, psd4, psd5, psd6, psd7]
-
-    if samplerate == 256:
-        # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.641.3620&rep=rep1&type=pdf
-        # https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8910555
-        psd1 = psd(amp,0,4)
-        psd2 = psd(amp,4,8)
-        psd3 = psd(amp,8,13)
-        psd4 = psd(amp,13,20)
-        psd5 = psd(amp,20,30)
-        psd6 = psd(amp,30,40)
-        psd7 = psd(amp,40,60)
-        psd8 = psd(amp,60,80)
-        psd9 = psd(amp,80,100)
-        psd10 = psd(amp,100,128)
-        psds = [psd1, psd2, psd3, psd4, psd5, psd6, psd7, psd8, psd9, psd10]
-
-    else:
-        print("Select correct sample rate!")
-        exit(1)
-    
-    return psds
-
-def spectrogram_feature(signal, samplerate, feature_samplerate):
-    freq_resolution = 2 # higher the better resolution but time consuming...
-    nperseg = 8
-    noverlap = 150  #0.75 s
-    nfft = int(samplerate * freq_resolution)
-    freqs, times, spec = stft(signal, samplerate, nperseg=nperseg, noverlap=noverlap, nfft=nfft, padded=False, boundary=None)
-    amp = (np.log(np.abs(spec) + 1e-10))
-    return freqs, times, amp
-
-def convert_to_univariate_eeg(eeg):
-    # concatenate all channels into one channel
-    uni_eeg = np.concatenate(eeg, axis=1)
-    return uni_eeg
-
-def generate_psd_feature(X_train, epoch_duration, samplerate):
-    psd_feature_all_epochs = []
-    for X_sample in X_train: #X_sample is a 2D array of shape (n_channels, n_samples), that is (19, 1024)
-        # read every channel in X_sample.
-        psd_feature_multi_channel = []
-        for ch in range(X_sample.shape[0]):
-            uni_ch = X_sample[ch,:]
-            w = hann(epoch_duration*samplerate)
-            SFT = ShortTimeFFT(w, hop=epoch_duration*samplerate+1, fs=samplerate, scale_to='psd') #edit mfft to adjust the frequency resolution
-            # SFT.k_max = epoch_duration*samplerate        
-            Sx = SFT.stft(uni_ch)#(513, 2)
-            
-            # t_lo, t_hi = SFT.extent(samplerate*epoch_duration)[:2] 
-            # print("t_lo: ", t_lo, "t_hi: ", t_hi)
-            psd_values = Sx[:, 0]#(513,2)
-
-            if samplerate == 128:
-                
-                psd1 = psd_values[0:4]
-                psd2 = psd_values[4:8]
-                psd3 = psd_values[8:13]
-                psd4 = psd_values[13:20]
-                psd5 = psd_values[20:30]
-                psd6 = psd_values[30:40]
-                psd7 = psd_values[40:60]
-                psd_feature_per_channel = [psd1, psd2, psd3, psd4, psd5, psd6, psd7]
-                # psd 1-7 is array with different length, so we need to concatenate them into one array
-                psd_feature_per_channel = np.concatenate(psd_feature_per_channel, axis=0)
-                #vertically append psd_feature_per_channel to psd_feature_multi_channel
-                psd_feature_multi_channel = psd_feature_per_channel if len(psd_feature_multi_channel) == 0 else np.concatenate((psd_feature_multi_channel, psd_feature_per_channel))
-                # print("psd_feature_multi_channel.shape: ", psd_feature_multi_channel.shape)
-
-        psd_feature_all_epochs.append(np.abs(psd_feature_multi_channel))
-    psd_feature_all_epochs = np.array(psd_feature_all_epochs)
-
-    return psd_feature_all_epochs
-
-def main():
-
-    with open('./config_fft.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-        config['timestamp'] = datetime.now().strftime("%m%d_%H%M%S") # add unique timestamp to the config
-        config['dataset'] = config['bids_root'].split('/')[-1]
-
-    os.makedirs(config['preprocessed_dir'], exist_ok=True)
-    os.makedirs(config['model_dir'], exist_ok=True)
-    os.makedirs(config['result_dir'], exist_ok=True)
-
-    # train_epochs, test_epochs = load_dataset(config)
-    # load data
-    setup_mne_for_processing(verbose=config.get('mne_verbose', False))
-
-    print("\n=== Preprocess Pipeline with Balanced Epochs ===")
-    
-    # Read and label all events
-    all_events, (seizure_subjects, bckg_subjects) = read_all_events(config)
-    # train test split, using stratified k-fold cross validation
-    split_seed = config.get('split_seed')
-    n_splits = 5
-    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
-    all_subjects = np.concatenate([seizure_subjects, bckg_subjects])
-    all_labels = np.concatenate([np.ones(len(seizure_subjects)), np.zeros(len(bckg_subjects))])
-    split_counter = 0
-    for train_index, test_index in kf.split(all_subjects, all_labels):
-        split_counter += 1
-        train_subjects = all_subjects[train_index]
-        test_subjects = all_subjects[test_index]
-        print(f"Train subjects ids for split {split_counter}: {train_subjects}, train labels: {all_labels[train_index]}")
-        print(f"Test subjects ids for split {split_counter}: {test_subjects}, test labels: {all_labels[test_index]}")
+    model = joblib.load(model_path)
+    raw_data = read_raw_edf(edf_path, preload=True)
+    # desired_channels = raw_data.ch_names[:19]
+    # raw_data.pick_channels(desired_channels, verbose=False)
+    total_duration = raw_data._last_time
+    fs = raw_data.info["sfreq"] / downsample # final sampling freq after downsample
 
 
-    # train events are all events from train subjects
-        train_events = all_events[all_events['subject'].isin(train_subjects)]
-    # test events are all events from test subjects
-        test_events = all_events[all_events['subject'].isin(test_subjects)]
+    df_tsv = pd.read_csv(tsv_path, sep='\t')
+    ref_events = []
+    for _, row in df_tsv.iterrows():
+        if row['eventType'] == 'bckg':
+            continue
+        start_time = int(row['onset'])
+        end_time = int(row['onset'] + row['duration'])
+        ref_events.append((start_time, end_time))
 
-        if config.get('debug', False):
-            print("\nReading and labeling events for split {}...".format(split_counter))
-            if all_events.empty:
-                print("No events found! Check your BIDS directory.")
-                break
-            print(f"Total events loaded for split {split_counter}: {len(all_events)}")
-    
-        # Create balanced epochs
-        print(f"Creating balanced epochs for train set for split {split_counter}...")
-        train_epochs = create_balanced_epochs(train_events, config)
-        print(f"Creating balanced epochs for test set for split {split_counter}...")
-        test_epochs = create_balanced_epochs(test_events, config)
+    n_samples = int(total_duration * fs)#?
 
-        X_train, y_train = load_epoch_data(train_epochs, config, split_name='train', split_counter=split_counter, cv=True)
-        # print("X_train.shape: ", X_train.shape) #(5651, 19, 1024)
-        epoch_duration = config.get('epoch_duration')
-        samplerate = config.get('sample_rate')
-        psd_feature_all_epochs = generate_psd_feature(X_train, epoch_duration, samplerate)
-        model = svm.SVC()
-        start_training_time = time.time()
-        model.fit(psd_feature_all_epochs, y_train)
-        end_training_time = time.time()
+    ref = Annotation(ref_events, fs, n_samples)
 
-        print(f"Model training completed in: {end_training_time - start_training_time:.2f} seconds")
-    
-        # save model
-        model_name = "{}_{}_split_{}".format(config['model_name'], config['timestamp'], split_counter)
-        model_path = os.path.join(config['model_dir'], f"{model_name}.pkl")
-        with open(model_path, 'wb') as f:
-            joblib.dump(model, f)
-        print(f"Model saved to: {model_path}")
-    
-        # save model config to the same directory
-        # TODO: we need configuration, number of epochs, performance(terminal output).
-        config_path = os.path.join(config['model_dir'], f"{model_name}_config.yaml")
-        with open(config_path, 'w') as f:
-            yaml.dump(config, f)
-        print(f"Config saved to: {config_path}")
-    
-        print(f"\n ===== Training Model Completed ===== \n")
-            # return np.array(psd_feature_all_epochs)
-        X_test, y_test = load_epoch_data(test_epochs, config, split_name='test', split_counter=split_counter, cv=True)
-        print(f"\n ===== Evaluating Model on test set ===== \n")
-        psd_feature_test = generate_psd_feature(X_test, epoch_duration, samplerate)
+    events_info = extract_event_info(tsv_path, epoch_duration)
+    epochs = extract_epochs(
+        edf_path, events_info, downsample, 0, epoch_duration, epoch_overlap, inference=True) # inference mode: use all data
+    segments = get_data_from_epochs(epochs)
+
+
+    try:
+        X_test = np.concatenate([s["epoch"] for s in segments]).astype(np.float32)
+        y_test = np.concatenate([s["label"] for s in segments]).astype(int)
+        psd_feature_test = generate_psd_feature(X_test, epoch_duration, fs)
+        time_start_test = np.concatenate([s["time_start"] for s in segments])
+        time_end_test = np.concatenate([s["time_end"] for s in segments])
+        del segments, X_test
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # y_pred = model.predict(X_test)
+        # predictions = model.predict_proba(X_test)
+        # yp = (predictions[:, 1] > threshold).astype(int) # threshold 
+        # y_pred = model.label_encoder.inverse_transform(yp)
         y_pred = model.predict(psd_feature_test)
-        print(f"Test set size(X_test): {len(X_test)}")
-
-        f1, precision, recall, accuracy, conf_mat, conf_mat_norm = analyze_classification(y_pred, y_test)
-
-        print(f"\n ===== Evaluating Model Completed ===== \n")
         
+        hyp_events = []
+        
+        for pred, time_start, time_end in zip(y_pred, time_start_test, time_end_test):
+            if pred == 1:
+                hyp_events.append((time_start, time_end))
 
+        hyp = Annotation(hyp_events, fs, n_samples)
+        fig, ax = plt.subplots(2,1, figsize=(8, 4.8))
+        # Compute sample-based scoring
+        sample_scores = SampleScoring(ref, hyp)
+        figSamples = visualization.plotSampleScoring(ref, hyp, ax=ax[0])
+        
+            
+        # Compute event-based scoring
+        param = scoring.EventScoring.Parameters(
+        toleranceStart=30,
+        toleranceEnd=60,
+        minOverlap=0,
+        maxEventDuration=100000,
+        minDurationBetweenEvents=90)
+        event_scores = scoring.EventScoring(ref, hyp, param)
+        
+        figEvents = visualization.plotEventScoring(ref, hyp, param, ax=ax[1])
+        if plot:
+            ax[0].figure.savefig(ss_path, bbox_inches='tight')
+            
+            
+        # close the figures
+        plt.close(figSamples)
+        plt.close(figEvents)
+
+        return sample_scores, event_scores
+    except Exception as e:
+        print(f"Error: {e}")
+        return None, None
     
-                    
+def append_notnan_and_count_nan(value, lst, counter):
+    if math.isnan(value):
+        counter += 1
+    else:
+        lst.append(value)
+    return counter
 
-log_path = 'temp.txt'
-output_capture = OutputCapture(log_path, also_console=True)
-sys.stdout = StdoutCapture(output_capture)
+
 
 if __name__ == "__main__":
-    main()
-    logging.shutdown()
-    os.rename('temp.txt', log_path)
+    config_id = 'fft_test_0804_073152_split_5'
+    config_file = './models/{}_config.yaml'.format(config_id)
+    with open(config_file, 'r') as f: #read config file
+        config = yaml.safe_load(f)
+    dataset = "Siena" # "Siena" or "TUSZ"
+    model_name = '{}.pkl'.format(config_id)
+
+    log_path = os.path.join(config['result_dir'], f'{config_id}_eval_{dataset}.txt')
+    output_capture = OutputCapture(log_path, also_console=True)
+    sys.stdout = StdoutCapture(output_capture)
+    sys.stderr = StderrCapture(output_capture) 
+    
+    # log_path = os.path.join(config['result_dir'], f'{config_id}_eval_{dataset}.txt')
+    
+    if dataset == "Siena":
+        bids_root = '/home/jovyan/BIDS_Siena'
+    else: # =TUSZ
+        bids_root = config['bids_root'] # Replace with your actual path
+    threshold = config['threshold']
+    train_size = config['split_ratio']
+    split_seed = config['split_seed']
+    epoch_duration = config['epoch_duration'] # in seconds
+    data_size = config['data_size']
+    samplerate = config['sample_rate']
+    
+    subject_ids = []
+    for root, dirs, files in os.walk(bids_root):
+        files.sort()
+        for file in files:
+            if file.endswith('.edf'):
+                subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
+                subject_ids.append(subject_id)
+    subject_ids = np.unique(subject_ids)
+    
+    if dataset == "TUSZ":
+        all_events, (seizure_subjects, bckg_subjects) = read_all_events(config)
+        split_seed = config.get('split_seed')
+        n_splits = 5
+        kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
+        all_subjects = np.concatenate([seizure_subjects, bckg_subjects])
+        all_labels = np.concatenate([np.ones(len(seizure_subjects)), np.zeros(len(bckg_subjects))])
+        split_counter = 0
+        for train_index, test_index in kf.split(all_subjects, all_labels):
+            split_counter += 1
+            if split_counter != 5:
+                continue
+            train_subjects = all_subjects[train_index]
+            test_subjects = all_subjects[test_index]
+            print(f"Train subjects ids for split {split_counter}: {train_subjects}, train labels: {all_labels[train_index]}")
+            print(f"Test subjects ids for split {split_counter}: {test_subjects}, test labels: {all_labels[test_index]}")
+        # train_seizure_subjects, test_seizure_subjects = train_test_split(seizure_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+        # train_bckg_subjects, test_bckg_subjects = train_test_split(bckg_subjects, test_size=1-config['split_ratio'], random_state=split_seed)
+        # train_subjects = train_seizure_subjects + train_bckg_subjects
+        # test_subjects = test_seizure_subjects + test_bckg_subjects
+            train_subject_idx = train_subjects
+            test_subject_idx = test_subjects
+        
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("cuda available: ", torch.cuda.is_available())
+        print("device: ", device)
+        
+        model_path = os.path.join(config['model_dir'], model_name)
+        model = joblib.load(model_path)
+    
+    if dataset == "Siena":
+        data_size = 1
+        # bids_root = '/home/jovyan/BIDS_Siena'
+        test_segments, test_epoch_numbers_df = read_dataset(bids_root, epoch_duration, max_workers=16) # set max_workers to 1 for debugging
+        test_subject_idx = subject_ids
+        
+        X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
+        y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
+        
+        del test_segments
+        
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("cuda available: ", torch.cuda.is_available())
+        print("device: ", device)
+        
+        model_path = os.path.join(config['model_dir'], model_name)
+        if os.path.exists(model_path):
+                with open(model_path, 'rb') as f:
+                    model = joblib.load(f)
+                print(f"Model loaded from: {model_path}")
+        
+        start_model_time = time.time()
+        
+        # model prediction on test set
+        # predictions = model.predict_proba(X_test)
+        # yp = (predictions[:, 1] > threshold).astype(int) # threshold = 0.5
+        
+        # y_pred = model.label_encoder.inverse_transform(yp)
+        psd_feature_test = generate_psd_feature(X_test, epoch_duration, samplerate)
+        y_pred = model.predict(psd_feature_test)
+        
+        f1, precision, recall, accuracy, conf_mat, conf_mat_norm = analyze_classification(y_pred, y_test)
+        
+        end_model_time = time.time()
+    
+    if dataset == "test":
+        data_size = 1
+        seizure_epochs, non_seizure_epochs, bckg_epochs = [], [], [],
+        recording_ids = read_ids_from_bids(bids_root)
+        for ids in recording_ids:
+
+            tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="tsv")
+            edf_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format="edf")
+            events_info = extract_event_info(tsv_path, 10)
+            epochs = extract_epochs(edf_path, events_info, inference=True)
+    
+        
+        test_segments = get_data_from_epochs(epochs)
+
+        
+        X_test = np.concatenate([s['epoch'] for s in test_segments]).astype(np.float32)
+        y_test = np.concatenate([s['label'] for s in test_segments]).astype(int)
+        
+        device = torch.device("cuda")
+        # device = torch.device("cpu")
+        model_path = os.path.join(config['model_dir'], model_name)
+        model = joblib.load(model_path)
+        
+        start_model_time = time.time()
+        y_pred = model.predict(X_test)
+        end_model_time = time.time()
+        print(f"Model prediction took: {end_model_time - start_model_time:.2f} seconds")
+        
+        
+    ################## Evaluate the model #################
+    
+    start_model_time = time.time()
+    
+    sample_sensitivity, sample_precision, sample_f1, sample_fpRate, event_sensitivity, event_precision, event_f1, event_fpRate = [], [], [], [], [], [], [], []
+    sample_precision_nan, sample_f1_nan, event_precision_nan, event_f1_nan = 0, 0, 0, 0
+    
+    subject_id_list = []
+    bckg_counter,seiz_counter = 0, 0
+    result_path = os.path.join(config['result_dir'], f"{model_name}_{dataset}_results.csv")
+    result_dir = config['result_dir']
+    os.makedirs(result_dir, exist_ok=True)
+    
+    test_ids = []
+    for root, dirs, files in os.walk(bids_root):
+        files.sort()
+        for file in files:
+            if file.endswith('.edf'):
+                subject_id, session_id, task_id, run_id = get_ids_from_filename(file)
+                if subject_id in test_subject_idx:
+                    test_ids.append({'subject_id': subject_id, 
+                                     'session_id': session_id, 
+                                     'task_id': task_id, 
+                                     'run_id': run_id})
+                    
+    idx_cnt = 0
+    for ids in test_ids:
+        edf_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format = 'edf')
+        tsv_path = get_path_from_ids(ids, bids_root, get_abs_path=True, file_format = 'tsv')
+        test_events_df = pd.read_csv(tsv_path, sep='\t')
+                
+        if "bckg" in test_events_df["eventType"].values:
+            bckg_counter += 1
+        if test_events_df["eventType"].str.contains("sz").any():
+            seiz_counter += 1
+                
+        subject_id = ids['subject_id']
+        session_id = ids['session_id']
+        task_id = ids['task_id']
+        run_id = ids['run_id']
+        
+    
+        ss_path = os.path.join(
+            config['result_dir'],
+            f"{config_id}_{dataset}",
+            f"{dataset}_sub-{subject_id}_ses-{session_id}_run-{run_id}.png"
+        )
+        
+        img_dir = os.path.dirname(ss_path)
+        os.makedirs(img_dir, exist_ok=True)
+        
+        sample_scores, event_scores = evaluate_recording_FFT(edf_path, tsv_path, model_path, threshold, epoch_duration, plot=False, ss_path=ss_path)
+        
+        if sample_scores is None or event_scores is None:
+            continue
+        subject_id_list.append(subject_id)
+        sample_sensitivity.append(sample_scores.sensitivity)
+        event_sensitivity.append(event_scores.sensitivity)
+        sample_precision.append(sample_scores.precision)
+        event_precision.append(event_scores.precision)
+        sample_f1.append(sample_scores.f1)
+        event_f1.append(event_scores.f1)
+        sample_fpRate.append(sample_scores.fpRate)
+        event_fpRate.append(event_scores.fpRate)
+
+        # save the sensitivity, precision, and f1-score of the samples and events as csv
+        if idx_cnt % 10 == 0:
+            results = pd.DataFrame({
+                "subject_id": subject_id_list,
+                'sample_sensitivity': sample_sensitivity,
+                'sample_precision': sample_precision,
+                'sample_f1': sample_f1,
+                'sample_fpRate': sample_fpRate,
+                'event_sensitivity': event_sensitivity,
+                'event_precision': event_precision,
+                'event_f1': event_f1,
+                'event_fpRate': event_fpRate,
+            })
+            results.to_csv(result_path, index=False)
+        idx_cnt += 1
+    
+    results = pd.DataFrame({
+        "subject_id": subject_id_list,
+        'sample_sensitivity': sample_sensitivity,
+        'sample_precision': sample_precision,
+        'sample_f1': sample_f1,
+        'sample_fpRate': sample_fpRate,
+        'event_sensitivity': event_sensitivity,
+        'event_precision': event_precision,
+        'event_f1': event_f1,
+        'event_fpRate': event_fpRate,
+    })
+    results.to_csv(result_path, index=False)
+    
+        
+    end_model_time = time.time()
+    print(f"Model evaluation took: {end_model_time - start_model_time:.2f} seconds")
+    print(f"Number of bckg recordings in test set: {bckg_counter}")
+    print(f"Number of sz recordings in test set: {seiz_counter}")
+    # logging.shutdown()
+    # os.rename('temp_eval_4.txt', log_path)
+        
+        
+        
+    
+    
+    
+    
+
